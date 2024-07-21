@@ -2,7 +2,6 @@ import torch
 import torch.nn as nn
 import math
 
-
 class PositionalEmbedding(nn.Module):
     def __init__(self, d_model, max_len=5000):
         super(PositionalEmbedding, self).__init__()
@@ -139,5 +138,85 @@ class DataEmbedding_inverted(nn.Module):
             # the potential to take covariates (e.g. timestamps) as tokens
             x = self.value_embedding(torch.cat([x, x_mark.permute(0, 2, 1)], 1)) 
         # x: [Batch Variate d_model]
+        return self.dropout(x)
+
+
+# TCN based inverted
+class TemporalBlock(nn.Module):
+    def __init__(self, n_inputs, n_outputs, kernel_size, stride, dilation, padding, dropout=0.2):
+        super(TemporalBlock, self).__init__()
+        self.conv1 = nn.Conv1d(n_inputs, n_outputs, kernel_size, stride=stride, padding=padding, dilation=dilation)
+        # print("conv1 shape",self.conv1.weight.shape)
+        self.relu1 = nn.ReLU()
+        self.dropout1 = nn.Dropout(dropout)
+        self.conv2 = nn.Conv1d(n_outputs, n_outputs, kernel_size, stride=stride, padding=padding, dilation=dilation)
+        # print("conv2 shape",self.conv2.weight.shape)
+        self.relu2 = nn.ReLU()
+        self.dropout2 = nn.Dropout(dropout)
+        self.net = nn.Sequential(self.conv1, self.relu1, self.dropout1, self.conv2, self.relu2, self.dropout2)
+        self.downsample = nn.Conv1d(n_inputs, n_outputs, 1) if n_inputs != n_outputs else None
+        # print("downsample shape",self.downsample.weight.shape)
+        self.relu = nn.ReLU()
+        self.init_weights()
+
+    def init_weights(self):
+        self.conv1.weight.data.normal_(0, 0.01)
+        self.conv2.weight.data.normal_(0, 0.01)
+        if self.downsample is not None:
+            self.downsample.weight.data.normal_(0, 0.01)
+        # print("net shape",self.downsample.weight.shape)
+
+    def forward(self, x):
+        if x.size()[1] != self.conv1.in_channels:
+            x = x.permute(0, 2, 1) # 추가
+        # print("Input size:", x.size())
+        out = self.net(x)
+        # print("Output size after conv layers:", out.size())
+        res = x if self.downsample is None else self.downsample(x)
+        # print("Output size after downsample:", res.size())
+
+        # Pad or truncate res to match the size of out along the third dimension
+        if res.size(2) != out.size(2):
+            if res.size(2) < out.size(2):
+                res = torch.nn.functional.pad(res, (0, out.size(2) - res.size(2)))
+            else:
+                res = res[:, :, :out.size(2)]
+
+        return self.relu(out + res)
+
+class TemporalConvNet(nn.Module):
+    def __init__(self, num_inputs, num_channels, kernel_size=2, dropout=0.2):
+        super(TemporalConvNet, self).__init__()
+        layers = []
+        num_levels = len(num_channels)
+        for i in range(num_levels):
+            dilation_size = 2 ** i
+            in_channels = num_inputs if i == 0 else num_channels[i-1]
+            out_channels = num_channels[i]
+            layers += [TemporalBlock(in_channels, out_channels, kernel_size, stride=1, dilation=dilation_size,
+                                     padding=(kernel_size-1) * dilation_size, dropout=dropout)]
+
+        self.network = nn.Sequential(*layers)
+
+    def forward(self, x):
+        return self.network(x)
+
+
+class DataEmbedding_inverted_TCN(nn.Module):
+    def __init__(self, c_in, d_model, embed_type='fixed', freq='h', dropout=0.1):
+        super(DataEmbedding_inverted_TCN, self).__init__()
+        self.value_embedding = TemporalConvNet(c_in, [d_model]*3)  # Example: 3 layers of TCN with d_model channels
+        self.dropout = nn.Dropout(p=dropout)
+
+    def forward(self, x, x_mark):
+        # print("x",x.shape)
+        x = x.permute(0, 2, 1)  # x: [Batch, Variate, Time]
+        # print("permuted x",x.shape)
+        # print("x_mark", x_mark.shape)
+        if x_mark is not None:
+            x = torch.cat([x, x_mark.permute(0, 2, 1)], 1)  # Concatenate along the variate dimension
+        x = self.value_embedding(x)
+        
+        print(self.dropout(x).shape) # check
         return self.dropout(x)
 
