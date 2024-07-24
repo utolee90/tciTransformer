@@ -132,3 +132,8 @@ dmypy.json
 
 # dataset
 dataset/
+
+# test set
+results/*
+test_results/*
+checkpoints/*

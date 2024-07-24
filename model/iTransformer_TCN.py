@@ -28,7 +28,7 @@ class Model(nn.Module):
         # Encoder-only architecture
         self.encoder = Encoder(
             [
-                EncoderLayer(
+                EncoderLayer( 
                     AttentionLayer(
                         FullAttention(False, configs.factor, attention_dropout=configs.dropout,
                                       output_attention=configs.output_attention), configs.d_model, configs.n_heads),

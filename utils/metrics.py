@@ -30,6 +30,34 @@ def MAPE(pred, true):
 def MSPE(pred, true):
     return np.mean(np.square((pred - true) / true))
 
+def SMAE(pred, true): # signed mae, 실제값 - 예측값
+    return np.mean(true-pred)
+
+def REC_CORR(pred, true): # 상관계수 3차원
+    cf = np.zeros(pred.shape[0])
+    for j in range(pred.shape[0]):
+        pred_part = pred[j,:,-1] # last variable
+        true_part = true[j,:,-1]
+        cf[j] = np.corrcoef(pred_part, true_part)[0,1] # 상관계수
+    
+    return np.mean(cf) # 상관계수 평균
+ 
+def RATIO_IRR(pred, true, coef=2): # 오차값 분석. 기본값 표준편차 2
+    
+    tot_size = np.size(pred)
+    mae = MAE(pred, true)
+
+    # Calculate absolute errors
+    err = np.abs(pred - true)
+    
+    # Determine large errors (errors that are k times larger than MAE)
+    large_errors = err > coef * mae
+    
+    # Calculate the ratio of large errors
+    large_error_ratio = np.sum(large_errors) / np.size(true)
+    
+    return large_error_ratio
+
 
 def metric(pred, true):
     mae = MAE(pred, true)

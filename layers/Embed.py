@@ -169,7 +169,7 @@ class TemporalBlock(nn.Module):
     def forward(self, x):
         if x.size()[1] != self.conv1.in_channels:
             x = x.permute(0, 2, 1) # 추가
-        # print("Input size:", x.size())
+        print("Input size:", x.size())
         out = self.net(x)
         # print("Output size after conv layers:", out.size())
         res = x if self.downsample is None else self.downsample(x)
@@ -206,17 +206,22 @@ class DataEmbedding_inverted_TCN(nn.Module):
     def __init__(self, c_in, d_model, embed_type='fixed', freq='h', dropout=0.1):
         super(DataEmbedding_inverted_TCN, self).__init__()
         self.value_embedding = TemporalConvNet(c_in, [d_model]*3)  # Example: 3 layers of TCN with d_model channels
+        # self.value_embedding = TemporalConvNet(c_in, [d_model]*3, 3, 0.005) # kernerl size 3, dropout 0.01
         self.dropout = nn.Dropout(p=dropout)
 
     def forward(self, x, x_mark):
         # print("x",x.shape)
-        x = x.permute(0, 2, 1)  # x: [Batch, Variate, Time]
+        #x = x.permute(0, 2, 1)  # x: [Batch, Variate, Time]
         # print("permuted x",x.shape)
         # print("x_mark", x_mark.shape)
+        #if x_mark is not None:
+        #    x = torch.cat([x, x_mark.permute(0, 2, 1)], 1)  # Concatenate along the variate dimension
         if x_mark is not None:
-            x = torch.cat([x, x_mark.permute(0, 2, 1)], 1)  # Concatenate along the variate dimension
+            x = torch.cat([x, x_mark], 2)
         x = self.value_embedding(x)
         
-        print(self.dropout(x).shape) # check
-        return self.dropout(x)
+        #print(self.dropout(x).shape) # check
+        #return self.dropout(x)
+        print(self.dropout(x.permute(0,2,1)).shape)
+        return self.dropout(x.permute(0,2,1))
 

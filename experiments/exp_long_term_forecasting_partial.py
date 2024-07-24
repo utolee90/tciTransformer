@@ -1,7 +1,7 @@
 from data_provider.data_factory import data_provider
 from experiments.exp_basic import Exp_Basic
 from utils.tools import EarlyStopping, adjust_learning_rate, visual
-from utils.metrics import metric
+from utils.metrics import metric, REC_CORR, SMAE, RATIO_IRR
 import torch
 import torch.nn as nn
 from torch import optim
@@ -329,15 +329,31 @@ class Exp_Long_Term_Forecast_Partial(Exp_Basic):
             os.makedirs(folder_path)
 
         mae, mse, rmse, mape, mspe = metric(preds, trues)
-        print('mse:{}, mae:{}'.format(mse, mae))
+        
+        smae = SMAE(preds, trues)
+        tt_mae_ration = RATIO_IRR(preds, trues, 3)
+        pred_last = preds[:,:,-1]
+        true_last = trues[:,:,-1]
+        mae_last, mse_last, rmse_last, mape_last, mspe_last = metric(pred_last, true_last)
+        corr_last = REC_CORR(preds, trues)
+        smae_last = SMAE(pred_last, true_last)
+        tt_mae_ration_last = RATIO_IRR(pred_last, true_last, 2)
+        write_msg = 'mse:{}, mae:{}, smae:{}, irr_ratio(3):{}'.format(mse, mae, smae, tt_mae_ration)
+        print(write_msg)
+        write_msg_2 = 'mse_last:{}, mae_last:{}, corr_last:{}, smae_last:{}, irr_ratio_last(3):{}'.format(
+            mse_last, mae_last, corr_last, smae_last, tt_mae_ration_last
+            )
+        print(write_msg_2)
         f = open("result_long_term_forecast.txt", 'a')
         f.write(setting + "  \n")
-        f.write('mse:{}, mae:{}'.format(mse, mae))
+        f.write(write_msg + '\n')
+        f.write(write_msg_2)
         f.write('\n')
         f.write('\n')
         f.close()
 
-        np.save(folder_path + 'metrics.npy', np.array([mae, mse, rmse, mape, mspe]))
+        np.save(folder_path + 'metrics.npy', np.array([mae, mse, rmse, mape, mspe, smae, tt_mae_ration]))
+        np.save(folder_path + 'metrics_last.npy', np.array([mae_last, mse_last, rmse_last, mape_last, mspe_last, corr_last, smae_last, tt_mae_ration_last]))
         np.save(folder_path + 'pred.npy', preds)
         np.save(folder_path + 'true.npy', trues)
 
