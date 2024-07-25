@@ -1,6 +1,8 @@
 import torch
 import torch.nn as nn
 import math
+import torch.nn.functional as F
+from torch.nn.utils import weight_norm
 
 class PositionalEmbedding(nn.Module):
     def __init__(self, d_model, max_len=5000):
@@ -145,15 +147,21 @@ class DataEmbedding_inverted(nn.Module):
 class TemporalBlock(nn.Module):
     def __init__(self, n_inputs, n_outputs, kernel_size, stride, dilation, padding, dropout=0.2):
         super(TemporalBlock, self).__init__()
-        self.conv1 = nn.Conv1d(n_inputs, n_outputs, kernel_size, stride=stride, padding=padding, dilation=dilation)
+        
+        self.conv1 = weight_norm(nn.Conv1d(n_inputs, n_outputs, kernel_size, stride=stride, padding=padding, dilation=dilation))
         # print("conv1 shape",self.conv1.weight.shape)
+        self.chomp1 = Chomp1d(padding)
+
         self.relu1 = nn.ReLU()
         self.dropout1 = nn.Dropout(dropout)
-        self.conv2 = nn.Conv1d(n_outputs, n_outputs, kernel_size, stride=stride, padding=padding, dilation=dilation)
+        
+        self.conv2 = weight_norm(nn.Conv1d(n_outputs, n_outputs, kernel_size, stride=stride, padding=padding, dilation=dilation))
+        self.chomp2 = Chomp1d(padding)
         # print("conv2 shape",self.conv2.weight.shape)
         self.relu2 = nn.ReLU()
         self.dropout2 = nn.Dropout(dropout)
-        self.net = nn.Sequential(self.conv1, self.relu1, self.dropout1, self.conv2, self.relu2, self.dropout2)
+
+        self.net = nn.Sequential(self.conv1, self.chomp1, self.relu1, self.dropout1, self.conv2, self.chomp2, self.relu2, self.dropout2)
         self.downsample = nn.Conv1d(n_inputs, n_outputs, 1) if n_inputs != n_outputs else None
         # print("downsample shape",self.downsample.weight.shape)
         self.relu = nn.ReLU()
@@ -167,6 +175,7 @@ class TemporalBlock(nn.Module):
         # print("net shape",self.downsample.weight.shape)
 
     def forward(self, x):
+        print(x.size(), self.conv1.in_channels)
         if x.size()[1] != self.conv1.in_channels:
             x = x.permute(0, 2, 1) # 추가
         print("Input size:", x.size())
@@ -210,18 +219,120 @@ class DataEmbedding_inverted_TCN(nn.Module):
         self.dropout = nn.Dropout(p=dropout)
 
     def forward(self, x, x_mark):
-        # print("x",x.shape)
-        #x = x.permute(0, 2, 1)  # x: [Batch, Variate, Time]
+        print("x",x.shape)
+        # x = x.permute(0, 2, 1)  # x: [Batch, Variate, Time]
         # print("permuted x",x.shape)
-        # print("x_mark", x_mark.shape)
-        #if x_mark is not None:
-        #    x = torch.cat([x, x_mark.permute(0, 2, 1)], 1)  # Concatenate along the variate dimension
+        print("x_mark", x_mark.shape)
+        # if x_mark is not None:
+        #     x = torch.cat([x, x_mark.permute(0, 2, 1)], 1)  # Concatenate along the variate dimension
+        # print(self.dropout(x).shape) # check
+        # return self.dropout(x)
         if x_mark is not None:
             x = torch.cat([x, x_mark], 2)
         x = self.value_embedding(x)
         
-        #print(self.dropout(x).shape) # check
-        #return self.dropout(x)
         print(self.dropout(x.permute(0,2,1)).shape)
         return self.dropout(x.permute(0,2,1))
 
+
+# TCN 원조 코드 사용
+class Chomp1d(nn.Module):
+    def __init__(self, chomp_size):
+        super(Chomp1d, self).__init__()
+        # chomp_size(padding size): (kernel_size-1) * dilation_size 
+        self.chomp_size = chomp_size  
+
+    def forward(self, x):
+        # output: (N, C_in, L_in - chomp_size)
+        return x[:, :, :-self.chomp_size].contiguous()
+
+
+class TemporalBlock1(nn.Module):
+    def __init__(self, n_inputs, n_outputs, kernel_size, stride, dilation, padding, dropout=0.2):
+        super(TemporalBlock1, self).__init__()
+        #--------------------- Dilated Causal Convolution --------------------- 
+        '''
+        input: (N, C_in, L_in) -> (N, C_out, L_in)
+        output sequence의 길이는 변하지 않는다. 
+        '''
+        self.conv1 = weight_norm(nn.Conv1d(n_inputs, n_outputs, kernel_size,
+                                           stride=stride, padding=padding, dilation=dilation))
+        self.chomp1 = Chomp1d(padding)
+        #----------------------------------------------------------------------
+        self.relu1 = nn.ReLU()
+        self.dropout1 = nn.Dropout(dropout)
+
+        #--------------------- Dilated Causal Convolution --------------------- 
+        '''
+        input: (N, C_in, L_in) -> output: (N, C_out, L_in)
+        output sequence의 길이는 변하지 않는다. 
+        '''
+        self.conv2 = weight_norm(nn.Conv1d(n_outputs, n_outputs, kernel_size,
+                                           stride=stride, padding=padding, dilation=dilation))
+        self.chomp2 = Chomp1d(padding)
+        #----------------------------------------------------------------------
+        self.relu2 = nn.ReLU()
+        self.dropout2 = nn.Dropout(dropout)
+        
+        # Dilated Causal Conv -> WeightedNorm -> ReLU -> Dropout -> ... (논문의 Residual block 구조와 동일)
+        self.net = nn.Sequential(self.conv1, self.chomp1, self.relu1, self.dropout1,
+                                 self.conv2, self.chomp2, self.relu2, self.dropout2)
+        
+        # Residual Connections 
+        '''  
+        만약 Dilated Causal Conv를 적용하기 전의 input channel과 적용한 후의 
+        output channel이 달라질 경우를 대비하여 추가적인 1*1 convolution을 추가해줌.
+
+        input: (N, C_in, L_in) -> output: (N, C_out, L_in)
+        output sequence의 길이는 변하지 않는다. (1*1 convolution)
+        '''  
+        self.downsample = nn.Conv1d(n_inputs, n_outputs, 1) if n_inputs != n_outputs else None
+        self.relu = nn.ReLU()
+        self.init_weights()
+
+    def init_weights(self):
+        self.conv1.weight.data.normal_(0, 0.01)
+        self.conv2.weight.data.normal_(0, 0.01)
+        if self.downsample is not None:
+            self.downsample.weight.data.normal_(0, 0.01)
+
+    def forward(self, x):
+        out = self.net(x)
+        res = x if self.downsample is None else self.downsample(x)
+        return self.relu(out + res)
+
+
+class TemporalConvNet1(nn.Module):
+    def __init__(self, num_inputs, num_channels, kernel_size=2, dropout=0.2):
+        super(TemporalConvNet1, self).__init__()
+        layers = []
+        num_levels = len(num_channels)
+        for i in range(num_levels):
+            # dilation factor는 layer의 깊이에 지수적으로 증가 (2^i, i: layer depth) 
+            dilation_size = 2 ** i 
+            in_channels = num_inputs if i == 0 else num_channels[i-1]
+            out_channels = num_channels[i]
+            # 설정된 layer의 깊이만큼 TemporalBlock 생성 
+            layers += [TemporalBlock1(in_channels, out_channels, kernel_size, stride=1, dilation=dilation_size,
+                                     padding=(kernel_size-1) * dilation_size, dropout=dropout)]
+
+        self.network = nn.Sequential(*layers)
+
+    def forward(self, x):
+        return self.network(x)
+
+
+class TCN(nn.Module):
+    def __init__(self, input_size, output_size, num_channels, kernel_size, dropout):
+        super(TCN, self).__init__()
+        self.tcn = TemporalConvNet1(input_size, num_channels, kernel_size=kernel_size, dropout=dropout)
+        self.linear = nn.Linear(num_channels[-1], output_size)
+
+    def forward(self, inputs):
+        """
+        Inputs have to have dimension (N, C_in, L_in)
+        Flatten된 MNIST의 경우에는 (batch_size, 1, 784)
+        """
+        y1 = self.tcn(inputs)  # input should have dimension (N, C, L)
+        o = self.linear(y1[:, :, -1]) # sequence의 마지막 time step로 linear계산 -> 분류예측
+        return F.log_softmax(o, dim=1)
