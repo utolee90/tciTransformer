@@ -1,5 +1,5 @@
 import numpy as np
-
+from sklearn.metrics import r2_score
 
 def RSE(pred, true):
     return np.sqrt(np.sum((true - pred) ** 2)) / np.sqrt(np.sum((true - true.mean()) ** 2))
@@ -29,6 +29,9 @@ def MAPE(pred, true):
 
 def MSPE(pred, true):
     return np.mean(np.square((pred - true) / true))
+
+def R2score(pred, true): # R2 score 값
+    return r2_score(true, pred)
 
 def SMAE(pred, true): # signed mae, 실제값 - 예측값
     return np.mean(true-pred)
@@ -65,5 +68,9 @@ def metric(pred, true):
     rmse = RMSE(pred, true)
     mape = MAPE(pred, true)
     mspe = MSPE(pred, true)
+    r2 = R2score(pred, true)
+    smae = SMAE(pred, true)
+    reccorr = REC_CORR(pred, true)
+    ratioirr = RATIO_IRR(pred, true)
 
-    return mae, mse, rmse, mape, mspe
+    return mae, mse, rmse, mape, mspe, r2, smae, reccorr, ratioirr
