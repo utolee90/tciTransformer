@@ -222,7 +222,8 @@ class DataEmbedding_inverted_TCN(nn.Module):
         print("x",x.shape)
         # x = x.permute(0, 2, 1)  # x: [Batch, Variate, Time]
         # print("permuted x",x.shape)
-        print("x_mark", x_mark.shape)
+        # if x_mart is not None:
+        #    print("x_mark", x_mark.shape)
         # if x_mark is not None:
         #     x = torch.cat([x, x_mark.permute(0, 2, 1)], 1)  # Concatenate along the variate dimension
         # print(self.dropout(x).shape) # check
