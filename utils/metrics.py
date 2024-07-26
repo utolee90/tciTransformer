@@ -68,9 +68,5 @@ def metric(pred, true):
     rmse = RMSE(pred, true)
     mape = MAPE(pred, true)
     mspe = MSPE(pred, true)
-    # r2 = R2score(pred, true)
-    # smae = SMAE(pred, true)
-    # reccorr = REC_CORR(pred, true)
-    # ratioirr = RATIO_IRR(pred, true)
 
     return mae, mse, rmse, mape, mspe
