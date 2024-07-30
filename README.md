@@ -2,38 +2,8 @@
 
 The repo is the official implementation for the paper: [iTransformer: Inverted Transformers Are Effective for Time Series Forecasting](https://arxiv.org/abs/2310.06625). [[Slides]](https://cloud.tsinghua.edu.cn/f/175ff98f7e2d44fbbe8e/), [[Poster]](https://cloud.tsinghua.edu.cn/f/36a2ae6c132d44c0bd8c/).
 
-
-# Updates
-
-:triangular_flag_on_post: **News** (2024.05) Many thanks for the great efforts from [lucidrains](https://github.com/lucidrains/iTransformer). A pip package for the usage of iTransformer variants can be simply installed via ```pip install iTransformer```
-
-:triangular_flag_on_post: **News** (2024.03) Introduction of our work in [Chinese](https://mp.weixin.qq.com/s/-pvBnA1_NSloNxa6TYXTSg) is available.
-
-:triangular_flag_on_post: **News** (2024.02) iTransformer has been accepted as **ICLR 2024 Spotlight**.
-
-:triangular_flag_on_post: **News** (2023.12) iTransformer available in [GluonTS](https://github.com/awslabs/gluonts/pull/3017) with probablistic emission head and support for static covariates.
-
-:triangular_flag_on_post: **News** (2023.12) We received lots of valuable suggestions. A [revised version](https://arxiv.org/pdf/2310.06625v2.pdf) (**24 Pages**) is now available.
-
-:triangular_flag_on_post: **News** (2023.10) iTransformer has been included in [[Time-Series-Library]](https://github.com/thuml/Time-Series-Library) and achieves state-of-the-art in Lookback-$96$ forecasting.
-
-:triangular_flag_on_post: **News** (2023.10) All the scripts for the experiments in our [paper](https://arxiv.org/pdf/2310.06625.pdf) are available.
-
-
-## Introduction
-
-🌟 Considering the characteristics of multivariate time series, iTransformer breaks the conventional structure without modifying any Transformer modules. **Inverted Transformer is all you need in MTSF**.
-
-<p align="center">
-<img src="./figures/motivation.png"  alt="" align=center />
-</p>
-
-🏆 iTransformer achieves the comprehensive state-of-the-art in challenging multivariate forecasting tasks and solves several pain points of Transformer on extensive time series data.
-
-<p align="center">
-<img src="./figures/radar.png" height = "360" alt="" align=center />
-</p>
-
+# Basic Info
+Please see [iTrnasformer Main Link](https://github.com/thuml/iTransformer)
 
 ## Overall Architecture
 
@@ -78,23 +48,14 @@ bash ./scripts/increasing_lookback/Traffic/iTransformer.sh
 bash ./scripts/efficient_attentions/iFlashTransformer.sh
 ```
 
+## How To Use
+The hyperparameter settings are stated in run.py.
+
+For using script, please use scripts.
+
+
+
 ## Main Result of Multivariate Forecasting
-
-We evaluate the iTransformer on challenging multivariate forecasting benchmarks (**generally hundreds of variates**). **Comprehensive good performance** (MSE/MAE$\downarrow$) is achieved.
-
-
-### Challenging Multivariate Time Series Forecasting Benchmarks (Avg Results)
-
-<p align="center">
-<img src="./figures/main_results.png" alt="" align=center />
-</p>
-
-
-### Online Transaction Load Prediction of Alipay Trading Platform (Avg Results) 
-
-<p align="center">
-<img src="./figures/main_results_alipay.png" alt="" align=center />
-</p>
 
 ## General Performance Boosting on Transformers
 

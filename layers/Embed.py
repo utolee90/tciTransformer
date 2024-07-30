@@ -3,6 +3,7 @@ import torch.nn as nn
 import math
 import torch.nn.functional as F
 from torch.nn.utils import weight_norm
+import numpy as np
 
 class PositionalEmbedding(nn.Module):
     def __init__(self, d_model, max_len=5000):
@@ -145,7 +146,7 @@ class DataEmbedding_inverted(nn.Module):
 
 # TCN based inverted
 class TemporalBlock(nn.Module):
-    def __init__(self, n_inputs, n_outputs, kernel_size, stride, dilation, padding, dropout=0.2):
+    def __init__(self, n_inputs, n_outputs, kernel_size, stride, dilation, padding, dropout=0.1):
         super(TemporalBlock, self).__init__()
         
         self.conv1 = weight_norm(nn.Conv1d(n_inputs, n_outputs, kernel_size, stride=stride, padding=padding, dilation=dilation))
@@ -153,11 +154,12 @@ class TemporalBlock(nn.Module):
         self.chomp1 = Chomp1d(padding)
 
         self.relu1 = nn.ReLU()
+        # self.gelu1 = nn.GeLU()
         self.dropout1 = nn.Dropout(dropout)
         
         self.conv2 = weight_norm(nn.Conv1d(n_outputs, n_outputs, kernel_size, stride=stride, padding=padding, dilation=dilation))
         self.chomp2 = Chomp1d(padding)
-        # print("conv2 shape",self.conv2.weight.shape)
+        print("conv2 shape",self.conv2.weight.shape)
         self.relu2 = nn.ReLU()
         self.dropout2 = nn.Dropout(dropout)
 
@@ -175,10 +177,10 @@ class TemporalBlock(nn.Module):
         # print("net shape",self.downsample.weight.shape)
 
     def forward(self, x):
-        print(x.size(), self.conv1.in_channels)
+        # print(x.size(), self.conv1.in_channels)
         if x.size()[1] != self.conv1.in_channels:
             x = x.permute(0, 2, 1) # 추가
-        print("Input size:", x.size())
+        # print("Input size:", x.size())
         out = self.net(x)
         # print("Output size after conv layers:", out.size())
         res = x if self.downsample is None else self.downsample(x)
@@ -194,7 +196,7 @@ class TemporalBlock(nn.Module):
         return self.relu(out + res)
 
 class TemporalConvNet(nn.Module):
-    def __init__(self, num_inputs, num_channels, kernel_size=2, dropout=0.2):
+    def __init__(self, num_inputs, num_channels, kernel_size=2, dropout=0.1):
         super(TemporalConvNet, self).__init__()
         layers = []
         num_levels = len(num_channels)
@@ -210,16 +212,45 @@ class TemporalConvNet(nn.Module):
     def forward(self, x):
         return self.network(x)
 
+def arithmetic_terms(a, b, r):
+    """
+    a와 b 사이에 r개의 텀을 가진 등차수열을 생성하는 함수.
+    반환되는 수들은 자연수여야 합니다.
+    
+    Parameters:
+    a (int): 시작 값
+    b (int): 끝 값
+    r (int): 등차수열의 텀 개수
+    
+    Returns:
+    list: 등차수열을 이루는 r개의 자연수 리스트
+    """
+    # linspace를 사용하여 a와 b 사이의 r개 점을 생성
+    sequence = np.linspace(a, b, r)
+    
+    # 각 값을 반올림하여 자연수로 변환
+    sequence = np.round(sequence).astype(int)
+    
+    # 중복 제거 및 순서 유지
+    unique_sequence = list(dict.fromkeys(sequence))
+    
+    return unique_sequence
+
 
 class DataEmbedding_inverted_TCN(nn.Module):
-    def __init__(self, c_in, d_model, embed_type='fixed', freq='h', dropout=0.1):
+    def __init__(self, c_in, d_model, embed_type='fixed', freq='h', dropout=0.1, num_layers=3, kernel_size=2, tcn_drop_rate=0.1, uniform_layer= True):
         super(DataEmbedding_inverted_TCN, self).__init__()
-        self.value_embedding = TemporalConvNet(c_in, [d_model]*3)  # Example: 3 layers of TCN with d_model channels
+        num_channels = list(np.array(arithmetic_terms(c_in/4, d_model/4, num_layers+1)[1:])*4) # 첫 번째는 제외
+        if uniform_layer:
+            self.value_embedding = TemporalConvNet(c_in, [d_model]*num_layers, kernel_size, tcn_drop_rate)
+        else:
+            self.value_embedding = TemporalConvNet(c_in, num_channels, kernel_size, tcn_drop_rate)  # Example: 3 layers of TCN with d_model channels
+            
         # self.value_embedding = TemporalConvNet(c_in, [d_model]*3, 3, 0.005) # kernerl size 3, dropout 0.01
         self.dropout = nn.Dropout(p=dropout)
 
     def forward(self, x, x_mark):
-        print("x",x.shape)
+        # print("x",x.shape)
         # x = x.permute(0, 2, 1)  # x: [Batch, Variate, Time]
         # print("permuted x",x.shape)
         # if x_mart is not None:
@@ -232,7 +263,7 @@ class DataEmbedding_inverted_TCN(nn.Module):
             x = torch.cat([x, x_mark], 2)
         x = self.value_embedding(x)
         
-        print(self.dropout(x.permute(0,2,1)).shape)
+        # print(self.dropout(x.permute(0,2,1)).shape)
         return self.dropout(x.permute(0,2,1))
 
 

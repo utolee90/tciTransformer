@@ -232,7 +232,7 @@ class Exp_Long_Term_Forecast_Partial(Exp_Basic):
             adjust_learning_rate(model_optim, epoch + 1, self.args)
 
         best_model_path = path + '/' + 'checkpoint.pth'
-        self.model.load_state_dict(torch.load(best_model_path))
+        self.model.load_state_dict(torch.load(best_model_path, map_location=self.device))
 
         return self.model
 

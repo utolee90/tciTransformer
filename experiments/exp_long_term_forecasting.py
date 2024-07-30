@@ -179,7 +179,7 @@ class Exp_Long_Term_Forecast(Exp_Basic):
             # get_cka(self.args, setting, self.model, train_loader, self.device, epoch)
 
         best_model_path = path + '/' + 'checkpoint.pth'
-        self.model.load_state_dict(torch.load(best_model_path))
+        self.model.load_state_dict(torch.load(best_model_path, map_location=self.device))
 
         return self.model
 

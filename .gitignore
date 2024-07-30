@@ -137,3 +137,4 @@ dataset/
 results/*
 test_results/*
 checkpoints/*
+logs/*

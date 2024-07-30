@@ -4,12 +4,14 @@ from experiments.exp_long_term_forecasting import Exp_Long_Term_Forecast
 from experiments.exp_long_term_forecasting_partial import Exp_Long_Term_Forecast_Partial
 import random
 import numpy as np
+import os
 
 if __name__ == '__main__':
     fix_seed = 2023
     random.seed(fix_seed)
     torch.manual_seed(fix_seed)
     np.random.seed(fix_seed)
+    print(os.environ.get("CUDA_VISIBLE_DEVICES"), " ", torch.cuda.device_count())
 
     parser = argparse.ArgumentParser(description='iTransformer')
 
@@ -86,6 +88,12 @@ if __name__ == '__main__':
     parser.add_argument('--use_norm', type=int, default=True, help='use norm and denorm')
     parser.add_argument('--partial_start_index', type=int, default=0, help='the start index of variates for partial training, '
                                                                            'you can select [partial_start_index, min(enc_in + partial_start_index, N)]')
+    
+    # tcitransformer
+    parser.add_argument('--tcn_layers', type=int, default=3, help='number of layers of TCN embedding field')
+    parser.add_argument('--tcn_kernel_size', type=int, default=2, help='number of kernel size of TCN embedding field')
+    parser.add_argument('--tcn_dropout', type=float, default=0.1, help='dropout rate of TCN embedding field')
+    parser.add_argument('--tcn_uniform_layer', type=bool, default=True, help='whether tcn_layer size is uniform')
 
     args = parser.parse_args()
     args.use_gpu = True if torch.cuda.is_available() and args.use_gpu else False
@@ -104,6 +112,16 @@ if __name__ == '__main__':
     else: # MTSF: multivariate time series forecasting
         Exp = Exp_Long_Term_Forecast
 
+    # tciTransformer 관련 셋팅
+    if args.model == "iTransformer_TCN":
+        tcn_add = "tcn-{}_{}_{}_{}_".format(
+            args.tcn_layers,
+            args.tcn_kernel_size,
+            args.tcn_dropout,
+            args.tcn_uniform_layer
+        )
+    else:
+        tcn_add = ""
 
     if args.is_training:
         for ii in range(args.itr):
@@ -125,7 +143,8 @@ if __name__ == '__main__':
                 args.embed,
                 args.distil,
                 args.des,
-                args.class_strategy, ii)
+                args.class_strategy, 
+                tcn_add + str(ii))
 
             exp = Exp(args)  # set experiments
             print('>>>>>>>start training : {}>>>>>>>>>>>>>>>>>>>>>>>>>>'.format(setting))
@@ -158,7 +177,8 @@ if __name__ == '__main__':
             args.embed,
             args.distil,
             args.des,
-            args.class_strategy, ii)
+            args.class_strategy, 
+            tcn_add+ str(ii))
 
         exp = Exp(args)  # set experiments
         print('>>>>>>>testing : {}<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<'.format(setting))

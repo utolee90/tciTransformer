@@ -19,10 +19,10 @@ class Model(nn.Module):
         self.output_attention = configs.output_attention
         self.use_norm = configs.use_norm
         # Embedding
-        # self.enc_embedding = DataEmbedding_inverted(configs.seq_len, configs.d_model, configs.embed, configs.freq,
-        #                                             configs.dropout)
+        print("ITR_TCN CONFIG: ", configs.seq_len, configs.d_model, configs.embed, configs.freq,
+                                                        configs.dropout, configs.tcn_layers, configs.tcn_kernel_size, configs.tcn_dropout, configs.tcn_uniform_layer)
         self.enc_embedding = DataEmbedding_inverted_TCN(configs.seq_len, configs.d_model, configs.embed, configs.freq,
-                                                        configs.dropout)
+                                                        configs.dropout, configs.tcn_layers, configs.tcn_kernel_size, configs.tcn_dropout, configs.tcn_uniform_layer)
                                                         
         self.class_strategy = configs.class_strategy
         # Encoder-only architecture
