@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from layers.Transformer_EncDec import Encoder, EncoderLayer
 from layers.SelfAttention_Family import FullAttention, AttentionLayer
-from layers.Embed import DataEmbedding_inverted_TCN
+from layers.Embed import DataEmbedding_inverted_TCN, TCN
 import numpy as np
 
 
@@ -19,10 +19,10 @@ class Model(nn.Module):
         self.output_attention = configs.output_attention
         self.use_norm = configs.use_norm
         # Embedding
-        # print("ITR_TCN CONFIG: ", configs.seq_len, configs.d_model, configs.embed, configs.freq,
-        #    configs.dropout, configs.tcn_layers, configs.tcn_kernel_size, configs.tcn_dropout, configs.tcn_uniform_layer, configs.tcn_bias)
+        print("ITR_TCN CONFIG: ", configs.seq_len, configs.d_model, configs.embed, configs.freq,
+                                                        configs.dropout, configs.tcn_layers, configs.tcn_kernel_size, configs.tcn_dropout, configs.tcn_uniform_layer)
         self.enc_embedding = DataEmbedding_inverted_TCN(configs.seq_len, configs.d_model, configs.embed, configs.freq,
-                            configs.dropout, configs.tcn_layers, configs.tcn_kernel_size, configs.tcn_dropout, configs.tcn_uniform_layer, configs.tcn_bias)
+                                                        configs.dropout, configs.tcn_layers, configs.tcn_kernel_size, configs.tcn_dropout, configs.tcn_uniform_layer)
                                                         
         self.class_strategy = configs.class_strategy
         # Encoder-only architecture
@@ -40,7 +40,9 @@ class Model(nn.Module):
             ],
             norm_layer=torch.nn.LayerNorm(configs.d_model)
         )
-        self.projector = nn.Linear(configs.d_model, configs.pred_len, bias=True)
+        # Linear -> TCN 적용
+        # self.projector = nn.Linear(configs.d_model, configs.pred_len, bias=True)
+        self.projector = TCN(configs.d_model, configs.pred_len, [configs.d_model]*3, 2, configs.dropout)
 
     def forecast(self, x_enc, x_mark_enc, x_dec, x_mark_dec):
         if self.use_norm:

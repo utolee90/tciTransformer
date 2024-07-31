@@ -94,6 +94,7 @@ if __name__ == '__main__':
     parser.add_argument('--tcn_kernel_size', type=int, default=2, help='number of kernel size of TCN embedding field')
     parser.add_argument('--tcn_dropout', type=float, default=0.1, help='dropout rate of TCN embedding field')
     parser.add_argument('--tcn_uniform_layer', type=bool, default=True, help='whether tcn_layer size is uniform')
+    parser.add_argument('--tcn_bias', type=bool, default=True, help='Use Bias in TCN Layers')
 
     args = parser.parse_args()
     args.use_gpu = True if torch.cuda.is_available() and args.use_gpu else False

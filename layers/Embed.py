@@ -146,25 +146,24 @@ class DataEmbedding_inverted(nn.Module):
 
 # TCN based inverted
 class TemporalBlock(nn.Module):
-    def __init__(self, n_inputs, n_outputs, kernel_size, stride, dilation, padding, dropout=0.1):
+    def __init__(self, n_inputs, n_outputs, kernel_size, stride, dilation, padding, dropout=0.1, bias=True):
         super(TemporalBlock, self).__init__()
         
-        self.conv1 = weight_norm(nn.Conv1d(n_inputs, n_outputs, kernel_size, stride=stride, padding=padding, dilation=dilation))
+        self.conv1 = weight_norm(nn.Conv1d(n_inputs, n_outputs, kernel_size, stride=stride, padding=padding, dilation=dilation, bias=bias))
         # print("conv1 shape",self.conv1.weight.shape)
         self.chomp1 = Chomp1d(padding)
 
         self.relu1 = nn.ReLU()
-        # self.gelu1 = nn.GeLU()
         self.dropout1 = nn.Dropout(dropout)
         
-        self.conv2 = weight_norm(nn.Conv1d(n_outputs, n_outputs, kernel_size, stride=stride, padding=padding, dilation=dilation))
+        self.conv2 = weight_norm(nn.Conv1d(n_outputs, n_outputs, kernel_size, stride=stride, padding=padding, dilation=dilation, bias=bias))
         self.chomp2 = Chomp1d(padding)
-        print("conv2 shape",self.conv2.weight.shape)
+        # print("conv2 shape",self.conv2.weight.shape)
         self.relu2 = nn.ReLU()
         self.dropout2 = nn.Dropout(dropout)
 
         self.net = nn.Sequential(self.conv1, self.chomp1, self.relu1, self.dropout1, self.conv2, self.chomp2, self.relu2, self.dropout2)
-        self.downsample = nn.Conv1d(n_inputs, n_outputs, 1) if n_inputs != n_outputs else None
+        self.downsample = nn.Conv1d(n_inputs, n_outputs, 1, bias=bias) if n_inputs != n_outputs else None
         # print("downsample shape",self.downsample.weight.shape)
         self.relu = nn.ReLU()
         self.init_weights()
@@ -196,7 +195,7 @@ class TemporalBlock(nn.Module):
         return self.relu(out + res)
 
 class TemporalConvNet(nn.Module):
-    def __init__(self, num_inputs, num_channels, kernel_size=2, dropout=0.1):
+    def __init__(self, num_inputs, num_channels, kernel_size=2, dropout=0.1, bias=True):
         super(TemporalConvNet, self).__init__()
         layers = []
         num_levels = len(num_channels)
@@ -205,7 +204,7 @@ class TemporalConvNet(nn.Module):
             in_channels = num_inputs if i == 0 else num_channels[i-1]
             out_channels = num_channels[i]
             layers += [TemporalBlock(in_channels, out_channels, kernel_size, stride=1, dilation=dilation_size,
-                                     padding=(kernel_size-1) * dilation_size, dropout=dropout)]
+                                     padding=(kernel_size-1) * dilation_size, dropout=dropout, bias=bias)]
 
         self.network = nn.Sequential(*layers)
 
@@ -238,13 +237,13 @@ def arithmetic_terms(a, b, r):
 
 
 class DataEmbedding_inverted_TCN(nn.Module):
-    def __init__(self, c_in, d_model, embed_type='fixed', freq='h', dropout=0.1, num_layers=3, kernel_size=2, tcn_drop_rate=0.1, uniform_layer= True):
+    def __init__(self, c_in, d_model, embed_type='fixed', freq='h', dropout=0.1, num_layers=3, kernel_size=2, tcn_dropout_rate=0.1, uniform_layer= True, tcn_bias=True):
         super(DataEmbedding_inverted_TCN, self).__init__()
         num_channels = list(np.array(arithmetic_terms(c_in/4, d_model/4, num_layers+1)[1:])*4) # 첫 번째는 제외
         if uniform_layer:
-            self.value_embedding = TemporalConvNet(c_in, [d_model]*num_layers, kernel_size, tcn_drop_rate)
+            self.value_embedding = TemporalConvNet(c_in, [d_model]*num_layers, kernel_size, tcn_dropout_rate, tcn_bias)
         else:
-            self.value_embedding = TemporalConvNet(c_in, num_channels, kernel_size, tcn_drop_rate)  # Example: 3 layers of TCN with d_model channels
+            self.value_embedding = TemporalConvNet(c_in, num_channels, kernel_size, tcn_dropout_rate, tcn_bias)  # Example: 3 layers of TCN with d_model channels
             
         # self.value_embedding = TemporalConvNet(c_in, [d_model]*3, 3, 0.005) # kernerl size 3, dropout 0.01
         self.dropout = nn.Dropout(p=dropout)
@@ -280,7 +279,7 @@ class Chomp1d(nn.Module):
 
 
 class TemporalBlock1(nn.Module):
-    def __init__(self, n_inputs, n_outputs, kernel_size, stride, dilation, padding, dropout=0.2):
+    def __init__(self, n_inputs, n_outputs, kernel_size, stride, dilation, padding, dropout=0.2, bias=True):
         super(TemporalBlock1, self).__init__()
         #--------------------- Dilated Causal Convolution --------------------- 
         '''
@@ -288,7 +287,7 @@ class TemporalBlock1(nn.Module):
         output sequence의 길이는 변하지 않는다. 
         '''
         self.conv1 = weight_norm(nn.Conv1d(n_inputs, n_outputs, kernel_size,
-                                           stride=stride, padding=padding, dilation=dilation))
+                                           stride=stride, padding=padding, dilation=dilation, bias=bias))
         self.chomp1 = Chomp1d(padding)
         #----------------------------------------------------------------------
         self.relu1 = nn.ReLU()
@@ -300,7 +299,7 @@ class TemporalBlock1(nn.Module):
         output sequence의 길이는 변하지 않는다. 
         '''
         self.conv2 = weight_norm(nn.Conv1d(n_outputs, n_outputs, kernel_size,
-                                           stride=stride, padding=padding, dilation=dilation))
+                                           stride=stride, padding=padding, dilation=dilation, bias=bias))
         self.chomp2 = Chomp1d(padding)
         #----------------------------------------------------------------------
         self.relu2 = nn.ReLU()
@@ -318,7 +317,7 @@ class TemporalBlock1(nn.Module):
         input: (N, C_in, L_in) -> output: (N, C_out, L_in)
         output sequence의 길이는 변하지 않는다. (1*1 convolution)
         '''  
-        self.downsample = nn.Conv1d(n_inputs, n_outputs, 1) if n_inputs != n_outputs else None
+        self.downsample = nn.Conv1d(n_inputs, n_outputs, 1, bias=bias) if n_inputs != n_outputs else None
         self.relu = nn.ReLU()
         self.init_weights()
 
@@ -365,6 +364,7 @@ class TCN(nn.Module):
         Inputs have to have dimension (N, C_in, L_in)
         Flatten된 MNIST의 경우에는 (batch_size, 1, 784)
         """
-        y1 = self.tcn(inputs)  # input should have dimension (N, C, L)
-        o = self.linear(y1[:, :, -1]) # sequence의 마지막 time step로 linear계산 -> 분류예측
+        # input 디멘션 바꾸기. (N, )
+        y1 = self.tcn(inputs.permute(0,2,1))  # input should have dimension (N, C, L)
+        o = self.linear(y1.permute(0,2,1)) # sequence의 마지막 time step로 linear계산 -> 분류예측
         return F.log_softmax(o, dim=1)
