@@ -251,10 +251,17 @@ class Exp_Long_Term_Forecast(Exp_Basic):
 
         preds = np.array(preds)
         trues = np.array(trues)
+
         print('test shape:', preds.shape, trues.shape)
         preds = preds.reshape(-1, preds.shape[-2], preds.shape[-1])
         trues = trues.reshape(-1, trues.shape[-2], trues.shape[-1])
         print('test shape:', preds.shape, trues.shape)
+
+        # shifing to initial value - just for verification.
+        if self.args.first_val_adjustment:
+            shifts = trues[:,:1,:] - preds[:,:1,:] # find difference of initial values
+            shifts = np.repeat(shifts, preds.shape[1], axis=1)
+            preds = preds + shifts # shift to initial value - verifying tester
 
         # result save
         folder_path = './results/' + setting + '/'

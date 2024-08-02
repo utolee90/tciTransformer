@@ -69,6 +69,7 @@ if __name__ == '__main__':
     parser.add_argument('--loss', type=str, default='MSE', help='loss function')
     parser.add_argument('--lradj', type=str, default='type1', help='adjust learning rate')
     parser.add_argument('--use_amp', action='store_true', help='use automatic mixed precision training', default=False)
+    parser.add_argument('--first_val_adjustment', type=bool, default=False, help='adjust first prediction value to true value')
 
     # GPU
     parser.add_argument('--use_gpu', type=bool, default=True, help='use gpu')
@@ -115,11 +116,12 @@ if __name__ == '__main__':
 
     # tciTransformer 관련 셋팅
     if args.model == "iTransformer_TCN":
-        tcn_add = "tcn-{}_{}_{}_{}_".format(
+        tcn_add = "tcn-{}_{}_{}_{}_{}_".format(
             args.tcn_layers,
             args.tcn_kernel_size,
             args.tcn_dropout,
-            args.tcn_uniform_layer
+            args.tcn_uniform_layer,
+            args.tcn_bias
         )
     else:
         tcn_add = ""

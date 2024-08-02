@@ -193,7 +193,58 @@ class TemporalBlock(nn.Module):
                 res = res[:, :, :out.size(2)]
 
         return self.relu(out + res)
+    
+# TCN based inverted
+class TemporalBlockMod(nn.Module):
+    def __init__(self, n_inputs, n_outputs, kernel_size, stride, dilation, padding, dropout=0.1, bias=True):
+        super(TemporalBlockMod, self).__init__()
+        
+        self.conv1 = nn.Conv1d(n_inputs, n_outputs, kernel_size, stride=stride, padding=padding, dilation=dilation, bias=bias)
+        # print("conv1 shape",self.conv1.weight.shape)
+        self.chomp1 = Chomp1d(padding)
 
+        self.act1 = nn.ELU()
+        self.dropout1 = nn.Dropout(dropout)
+        
+        self.conv2 = nn.Conv1d(n_outputs, n_outputs, kernel_size, stride=stride, padding=padding, dilation=dilation, bias=bias)
+        self.chomp2 = Chomp1d(padding)
+        # print("conv2 shape",self.conv2.weight.shape)
+        self.act2 = nn.ELU()
+        self.dropout2 = nn.Dropout(dropout)
+
+        self.net = nn.Sequential(self.conv1, self.chomp1, self.act1, self.dropout1, self.conv2, self.chomp2, self.act2, self.dropout2)
+        self.downsample = nn.Conv1d(n_inputs, n_outputs, 1, bias=bias) if n_inputs != n_outputs else None
+        # print("downsample shape",self.downsample.weight.shape)
+        self.act = nn.ELU()
+        self.init_weights()
+
+    def init_weights(self):
+        self.conv1.weight.data.normal_(0, 0.01)
+        self.conv2.weight.data.normal_(0, 0.01)
+        if self.downsample is not None:
+            self.downsample.weight.data.normal_(0, 0.01)
+        # print("net shape",self.downsample.weight.shape)
+
+    def forward(self, x):
+        # print(x.size(), self.conv1.in_channels)
+        if x.size()[1] != self.conv1.in_channels:
+            x = x.permute(0, 2, 1) # 추가
+        # print("Input size:", x.size())
+        out = self.net(x)
+        # print("Output size after conv layers:", out.size())
+        res = x if self.downsample is None else self.downsample(x)
+        # print("Output size after downsample:", res.size())
+
+        # Pad or truncate res to match the size of out along the third dimension
+        if res.size(2) != out.size(2):
+            if res.size(2) < out.size(2):
+                res = torch.nn.functional.pad(res, (0, out.size(2) - res.size(2)))
+            else:
+                res = res[:, :, :out.size(2)]
+
+        return self.act(out + res)
+
+# convolution 방식
 class TemporalConvNet(nn.Module):
     def __init__(self, num_inputs, num_channels, kernel_size=2, dropout=0.1, bias=True):
         super(TemporalConvNet, self).__init__()
@@ -203,8 +254,10 @@ class TemporalConvNet(nn.Module):
             dilation_size = 2 ** i
             in_channels = num_inputs if i == 0 else num_channels[i-1]
             out_channels = num_channels[i]
+            # layers += [TemporalBlock(in_channels, out_channels, kernel_size, stride=1, dilation=dilation_size,
+            #                         padding=(kernel_size-1) * dilation_size, dropout=dropout, bias=bias)]
             layers += [TemporalBlock(in_channels, out_channels, kernel_size, stride=1, dilation=dilation_size,
-                                     padding=(kernel_size-1) * dilation_size, dropout=dropout, bias=bias)]
+                            padding=(kernel_size-1) * dilation_size, dropout=dropout, bias=bias)]
 
         self.network = nn.Sequential(*layers)
 
