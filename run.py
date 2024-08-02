@@ -31,6 +31,10 @@ if __name__ == '__main__':
     parser.add_argument('--freq', type=str, default='h',
                         help='freq for time features encoding, options:[s:secondly, t:minutely, h:hourly, d:daily, b:business days, w:weekly, m:monthly], you can also use more detailed freq like 15min or 3h')
     parser.add_argument('--checkpoints', type=str, default='./checkpoints/', help='location of model checkpoints')
+    parser.add_argument('--train_ratio', type=float, default=0.7, help='train data ratio')
+    parser.add_argument('--test_ratio', type=float, default=0.2, help='test data ratio')
+    parser.add_argument('--select_ratio', type=float, default=1.0, help='select data ratio')
+    parser.add_argument('--two_sided', action='store_true', default=False, help='whether selecting train data as two-sided')
 
     # forecasting task
     parser.add_argument('--seq_len', type=int, default=96, help='input sequence length')
@@ -69,7 +73,7 @@ if __name__ == '__main__':
     parser.add_argument('--loss', type=str, default='MSE', help='loss function')
     parser.add_argument('--lradj', type=str, default='type1', help='adjust learning rate')
     parser.add_argument('--use_amp', action='store_true', help='use automatic mixed precision training', default=False)
-    parser.add_argument('--first_val_adjustment', type=bool, default=False, help='adjust first prediction value to true value')
+    parser.add_argument('--first_val_adjustment', action='store_true', default=False, help='adjust first prediction value to true value')
 
     # GPU
     parser.add_argument('--use_gpu', type=bool, default=True, help='use gpu')
@@ -80,13 +84,13 @@ if __name__ == '__main__':
     # iTransformer
     parser.add_argument('--exp_name', type=str, required=False, default='MTSF',
                         help='experiemnt name, options:[MTSF, partial_train]')
-    parser.add_argument('--channel_independence', type=bool, default=False, help='whether to use channel_independence mechanism')
+    parser.add_argument('--channel_independence', action='store_true', default=False, help='whether to use channel_independence mechanism')
     parser.add_argument('--inverse', action='store_true', help='inverse output data', default=False)
     parser.add_argument('--class_strategy', type=str, default='projection', help='projection/average/cls_token')
     parser.add_argument('--target_root_path', type=str, default='./data/electricity/', help='root path of the data file')
     parser.add_argument('--target_data_path', type=str, default='electricity.csv', help='data file')
-    parser.add_argument('--efficient_training', type=bool, default=False, help='whether to use efficient_training (exp_name should be partial train)') # See Figure 8 of our paper for the detail
-    parser.add_argument('--use_norm', type=int, default=True, help='use norm and denorm')
+    parser.add_argument('--efficient_training', action='store_true', default=False, help='whether to use efficient_training (exp_name should be partial train)') # See Figure 8 of our paper for the detail
+    parser.add_argument('--use_norm', type=int, default=1, help='use norm and denorm')
     parser.add_argument('--partial_start_index', type=int, default=0, help='the start index of variates for partial training, '
                                                                            'you can select [partial_start_index, min(enc_in + partial_start_index, N)]')
     
@@ -94,8 +98,8 @@ if __name__ == '__main__':
     parser.add_argument('--tcn_layers', type=int, default=3, help='number of layers of TCN embedding field')
     parser.add_argument('--tcn_kernel_size', type=int, default=2, help='number of kernel size of TCN embedding field')
     parser.add_argument('--tcn_dropout', type=float, default=0.1, help='dropout rate of TCN embedding field')
-    parser.add_argument('--tcn_uniform_layer', type=bool, default=True, help='whether tcn_layer size is uniform')
-    parser.add_argument('--tcn_bias', type=bool, default=True, help='Use Bias in TCN Layers')
+    parser.add_argument('--tcn_uniform_layer', action='store_false', help='whether tcn_layer size is uniform', default=True)
+    parser.add_argument('--tcn_bias', action='store_false', help='Use Bias in TCN Layers', default=True)
 
     args = parser.parse_args()
     args.use_gpu = True if torch.cuda.is_available() and args.use_gpu else False
@@ -125,11 +129,18 @@ if __name__ == '__main__':
         )
     else:
         tcn_add = ""
+    
+    drate_seq = "tr{}x{}-va{}-te{}".format(
+        args.train_ratio,
+        args.select_ratio,
+        1 - args.train_ratio - args.test_ratio,
+        f"{args.test_ratio}-2s" if args.two_sided else args.test_ratio
+    )
 
     if args.is_training:
         for ii in range(args.itr):
             # setting record of experiments
-            setting = '{}_{}_{}_{}_ft{}_sl{}_ll{}_pl{}_dm{}_nh{}_el{}_dl{}_df{}_fc{}_eb{}_dt{}_{}_{}'.format(
+            setting = '{}_{}_{}_{}_ft{}_sl{}_ll{}_pl{}_dm{}_nh{}_el{}_dl{}_df{}_fc{}_eb{}_dt{}_{}_drate_{}_{}'.format(
                 args.model_id,
                 args.model,
                 args.data,
@@ -147,6 +158,7 @@ if __name__ == '__main__':
                 args.distil,
                 args.des,
                 args.class_strategy, 
+                drate_seq,
                 tcn_add + str(ii))
 
             exp = Exp(args)  # set experiments
@@ -163,7 +175,7 @@ if __name__ == '__main__':
             torch.cuda.empty_cache()
     else:
         ii = 0
-        setting = '{}_{}_{}_{}_ft{}_sl{}_ll{}_pl{}_dm{}_nh{}_el{}_dl{}_df{}_fc{}_eb{}_dt{}_{}_{}'.format(
+        setting = '{}_{}_{}_{}_ft{}_sl{}_ll{}_pl{}_dm{}_nh{}_el{}_dl{}_df{}_fc{}_eb{}_dt{}_{}_drate{}_{}'.format(
             args.model_id,
             args.model,
             args.data,
@@ -181,6 +193,7 @@ if __name__ == '__main__':
             args.distil,
             args.des,
             args.class_strategy, 
+            drate_seq,
             tcn_add+ str(ii))
 
         exp = Exp(args)  # set experiments

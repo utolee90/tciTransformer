@@ -6,6 +6,7 @@ from torch.utils.data import Dataset, DataLoader
 from sklearn.preprocessing import StandardScaler
 from utils.timefeatures import time_features
 import warnings
+import random
 
 warnings.filterwarnings('ignore')
 
@@ -191,7 +192,7 @@ class Dataset_ETT_minute(Dataset):
 class Dataset_Custom(Dataset):
     def __init__(self, root_path, flag='train', size=None,
                  features='S', data_path='ETTh1.csv',
-                 target='OT', scale=True, timeenc=0, freq='h'):
+                 target='OT', scale=True, timeenc=0, freq='h', train_ratio=0.7, test_ratio=0.2, select_ratio=1, two_sided=False ):
         # size [seq_len, label_len, pred_len]
         # info
         if size == None:
@@ -215,6 +216,13 @@ class Dataset_Custom(Dataset):
 
         self.root_path = root_path
         self.data_path = data_path
+        self.select_ratio = select_ratio # 데이터 비율추가
+        self.two_sided = two_sided # 훈련방향 확인
+        self.train_ratio = train_ratio # 훈련데이터 비율
+        self.test_ratio = test_ratio # 실험데이터 비율
+
+        if select_ratio > 1 or train_ratio > 1 or test_ratio > 1 or select_ratio < 0 or train_ratio < 0 or test_ratio <0:
+            raise Exception("ERROR! Ratio must be between 0 and 1 ")
         self.__read_data__()
 
     def __read_data__(self):
@@ -229,13 +237,33 @@ class Dataset_Custom(Dataset):
         cols.remove(self.target)
         cols.remove('date')
         df_raw = df_raw[['date'] + cols + [self.target]]
-        num_train = int(len(df_raw) * 0.7)
-        num_test = int(len(df_raw) * 0.2)
+        num_total = len(df_raw)
+        num_train = int(len(df_raw) * self.train_ratio)
+        num_test = int(len(df_raw) * self.test_ratio)
         num_vali = len(df_raw) - num_train - num_test
         border1s = [0, num_train - self.seq_len, len(df_raw) - num_test - self.seq_len]
         border2s = [num_train, num_train + num_vali, len(df_raw)]
         border1 = border1s[self.set_type]
         border2 = border2s[self.set_type]
+
+        num_train_half = num_train // 2 # half of train data
+        num_vali_half = num_vali // 2 # half of vali data
+
+
+        if self.two_sided: # 양쪽으로 train, vali test 잡을 때
+            data_indices_obj = {
+                0:list(range(num_train_half + self.seq_len//2)) + list(range(num_total - num_train_half + self.seq_len//2, num_total)), 
+                1:list(range(num_train_half - self.seq_len//2, num_train_half + num_vali_half + self.seq_len//2)) + \
+                   list(range(num_total - num_train_half - num_vali_half - self.seq_len//2, num_total - num_train_half + self.seq_len//2)),
+                2:list(range(num_train_half + num_vali_half - self.seq_len, num_total - num_train_half - num_vali_half + self.seq_len))
+            }
+        else: # 기본적으로 
+            data_indices_obj = {
+                0: list(range(border1s[0], border2s[0])),
+                1: list(range(border1s[1], border2s[1])),
+                2: list(range(border1s[2], border2s[2]))
+            }
+
 
         if self.features == 'M' or self.features == 'MS':
             cols_data = df_raw.columns[1:]
@@ -243,14 +271,26 @@ class Dataset_Custom(Dataset):
         elif self.features == 'S':
             df_data = df_raw[[self.target]]
 
+        train_indices = data_indices_obj[0]
+        train_indices_len = int(len(train_indices) * self.select_ratio)
+
+        # 랜덤하게 선택
+        if self.select_ratio <1:
+            train_indices = sorted(random.sample(train_indices, train_indices_len ))
         if self.scale:
-            train_data = df_data[border1s[0]:border2s[0]]
+            
+            train_data = df_data.iloc[train_indices]
+
             self.scaler.fit(train_data.values)
             data = self.scaler.transform(df_data.values)
+            
         else:
             data = df_data.values
 
-        df_stamp = df_raw[['date']][border1:border2]
+        # train_data
+        selected_train_data = data[train_indices]
+
+        df_stamp = df_raw[['date']].iloc[data_indices_obj[self.set_type]]
         df_stamp['date'] = pd.to_datetime(df_stamp.date)
         if self.timeenc == 0:
             df_stamp['month'] = df_stamp.date.apply(lambda row: row.month, 1)
@@ -262,8 +302,8 @@ class Dataset_Custom(Dataset):
             data_stamp = time_features(pd.to_datetime(df_stamp['date'].values), freq=self.freq)
             data_stamp = data_stamp.transpose(1, 0)
 
-        self.data_x = data[border1:border2]
-        self.data_y = data[border1:border2]
+        self.data_x = selected_train_data if self.select_ratio < 1 and self.set_type== 0 else data[data_indices_obj[self.set_type]] 
+        self.data_y = selected_train_data if self.select_ratio < 1 and self.set_type== 0 else data[data_indices_obj[self.set_type]] 
         self.data_stamp = data_stamp
 
     def __getitem__(self, index):
@@ -533,3 +573,4 @@ class Dataset_Pred(Dataset):
 
     def inverse_transform(self, data):
         return self.scaler.inverse_transform(data)
+

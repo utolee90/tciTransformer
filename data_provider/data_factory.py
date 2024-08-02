@@ -43,6 +43,10 @@ def data_provider(args, flag):
         target=args.target,
         timeenc=timeenc,
         freq=freq,
+        train_ratio=args.train_ratio, 
+        test_ratio=args.test_ratio, 
+        select_ratio=args.select_ratio, 
+        two_sided=args.two_sided
     )
     print(flag, len(data_set))
     data_loader = DataLoader(
