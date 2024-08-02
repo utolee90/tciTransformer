@@ -139,4 +139,6 @@ test_results/*
 checkpoints/*
 logs/*
 
+# 기타 불필요한 파일
 dataset.zip
+result_long_term_forecast.txt
