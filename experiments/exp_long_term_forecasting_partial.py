@@ -344,7 +344,7 @@ class Exp_Long_Term_Forecast_Partial(Exp_Basic):
         mae_last, mse_last, rmse_last, mape_last, mspe_last = metric(pred_last, true_last)
         corr_last = REC_CORR(preds, trues)
         smae_last = SMAE(pred_last, true_last)
-        tt_mae_ration_last = RATIO_IRR(pred_last, true_last, 2)
+        tt_mae_ration_last = RATIO_IRR(pred_last, true_last, 3)
         write_msg = 'mse:{}, mae:{}, smae:{}, irr_ratio(3):{}'.format(mse, mae, smae, tt_mae_ration)
         print(write_msg)
         write_msg_2 = 'mse_last:{}, mae_last:{}, corr_last:{}, smae_last:{}, irr_ratio_last(3):{}'.format(
