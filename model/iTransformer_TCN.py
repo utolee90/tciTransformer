@@ -18,10 +18,13 @@ class Model(nn.Module):
         self.pred_len = configs.pred_len
         self.output_attention = configs.output_attention
         self.use_norm = configs.use_norm
+        self.augmented_token = configs.augmented_token
         # Embedding
         # print("ITR_TCN CONFIG: ", configs.seq_len, configs.d_model, configs.embed, configs.freq,
         #    configs.dropout, configs.tcn_layers, configs.tcn_kernel_size, configs.tcn_dropout, configs.tcn_uniform_layer, configs.tcn_bias)
-        self.enc_embedding = DataEmbedding_inverted_TCN(configs.seq_len, configs.d_model, configs.embed, configs.freq,
+        seq_len = configs.seq_len if not configs.augmented_token else configs.seq_len + configs.pred_len # 입력토큰 - augmented 옵션에 따라 길이 조정
+
+        self.enc_embedding = DataEmbedding_inverted_TCN(seq_len, configs.d_model, configs.embed, configs.freq,
                             configs.dropout, configs.tcn_layers, configs.tcn_kernel_size, configs.tcn_dropout, configs.tcn_uniform_layer, configs.tcn_bias)
                                                         
         self.class_strategy = configs.class_strategy
@@ -40,7 +43,9 @@ class Model(nn.Module):
             ],
             norm_layer=torch.nn.LayerNorm(configs.d_model)
         )
-        self.projector = nn.Linear(configs.d_model, configs.pred_len, bias=True)
+        pred_len = configs.pred_len if not configs.augmented_token else configs.seq_len + configs.pred_len # 입력토큰 - augmented 옵션에 따라 길이 조정
+        self.projector = nn.Linear(configs.d_model, pred_len, bias=True)
+        print("DEBUG::", seq_len, pred_len)
 
     def forecast(self, x_enc, x_mark_enc, x_dec, x_mark_dec):
         if self.use_norm:
@@ -66,10 +71,12 @@ class Model(nn.Module):
         # B N E -> B N S -> B S N 
         dec_out = self.projector(enc_out).permute(0, 2, 1)[:, :, :N] # filter the covariates
 
+        pred_len = self.pred_len if not self.augmented_token else self.seq_len + self.pred_len # 입력토큰 - augmented 옵션에 따라 길이 조정
+
         if self.use_norm:
             # De-Normalization from Non-stationary Transformer
-            dec_out = dec_out * (stdev[:, 0, :].unsqueeze(1).repeat(1, self.pred_len, 1))
-            dec_out = dec_out + (means[:, 0, :].unsqueeze(1).repeat(1, self.pred_len, 1))
+            dec_out = dec_out * (stdev[:, 0, :].unsqueeze(1).repeat(1, pred_len, 1))
+            dec_out = dec_out + (means[:, 0, :].unsqueeze(1).repeat(1, pred_len, 1))
 
         return dec_out
 

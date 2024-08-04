@@ -45,8 +45,8 @@ def data_provider(args, flag):
         freq=freq,
         train_ratio=args.train_ratio, 
         test_ratio=args.test_ratio, 
-        select_ratio=args.select_ratio, 
-        two_sided=args.two_sided
+        two_sided=args.two_sided,
+        augmented_token = args.augmented_token and args.model == 'iTransformer_TCN'
     )
     print(flag, len(data_set))
     data_loader = DataLoader(

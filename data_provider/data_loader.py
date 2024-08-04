@@ -14,7 +14,8 @@ warnings.filterwarnings('ignore')
 class Dataset_ETT_hour(Dataset):
     def __init__(self, root_path, flag='train', size=None,
                  features='S', data_path='ETTh1.csv',
-                 target='OT', scale=True, timeenc=0, freq='h'):
+                 target='OT', scale=True, timeenc=0, freq='h',
+                 train_ratio=0.7, test_ratio=0.2, two_sided=False, augmented_token=False):
         # size [seq_len, label_len, pred_len]
         # info
         if size == None:
@@ -102,7 +103,8 @@ class Dataset_ETT_hour(Dataset):
 class Dataset_ETT_minute(Dataset):
     def __init__(self, root_path, flag='train', size=None,
                  features='S', data_path='ETTm1.csv',
-                 target='OT', scale=True, timeenc=0, freq='t'):
+                 target='OT', scale=True, timeenc=0, freq='t',
+                 train_ratio=0.7, test_ratio=0.2, two_sided=False, augmented_token=False ):
         # size [seq_len, label_len, pred_len]
         # info
         if size == None:
@@ -192,7 +194,8 @@ class Dataset_ETT_minute(Dataset):
 class Dataset_Custom(Dataset):
     def __init__(self, root_path, flag='train', size=None,
                  features='S', data_path='ETTh1.csv',
-                 target='OT', scale=True, timeenc=0, freq='h', train_ratio=0.7, test_ratio=0.2, select_ratio=1, two_sided=False ):
+                 target='OT', scale=True, timeenc=0, freq='h', 
+                 train_ratio=0.7, test_ratio=0.2, two_sided=False, augmented_token=False ):
         # size [seq_len, label_len, pred_len]
         # info
         if size == None:
@@ -216,12 +219,12 @@ class Dataset_Custom(Dataset):
 
         self.root_path = root_path
         self.data_path = data_path
-        self.select_ratio = select_ratio # 데이터 비율추가
         self.two_sided = two_sided # 훈련방향 확인
         self.train_ratio = train_ratio # 훈련데이터 비율
         self.test_ratio = test_ratio # 실험데이터 비율
+        self.augmented_token = augmented_token # 0으로 채워진 긴 토큰
 
-        if select_ratio > 1 or train_ratio > 1 or test_ratio > 1 or select_ratio < 0 or train_ratio < 0 or test_ratio <0:
+        if train_ratio + test_ratio > 1 or train_ratio < 0 or test_ratio <0:
             raise Exception("ERROR! Ratio must be between 0 and 1 ")
         self.__read_data__()
 
@@ -240,28 +243,26 @@ class Dataset_Custom(Dataset):
         num_total = len(df_raw)
         num_train = int(len(df_raw) * self.train_ratio)
         num_test = int(len(df_raw) * self.test_ratio)
-        num_vali = len(df_raw) - num_train - num_test
+        num_val = len(df_raw) - num_train - num_test
         border1s = [0, num_train - self.seq_len, len(df_raw) - num_test - self.seq_len]
-        border2s = [num_train, num_train + num_vali, len(df_raw)]
+        border2s = [num_train, num_train + num_val, len(df_raw)]
         border1 = border1s[self.set_type]
         border2 = border2s[self.set_type]
 
         num_train_half = num_train // 2 # half of train data
-        num_vali_half = num_vali // 2 # half of vali data
+        num_val_half = num_val // 2 # half of vali data
 
 
         if self.two_sided: # 양쪽으로 train, vali test 잡을 때
             data_indices_obj = {
                 0:list(range(num_train_half + self.seq_len//2)) + list(range(num_total - num_train_half + self.seq_len//2, num_total)), 
-                1:list(range(num_train_half - self.seq_len//2, num_train_half + num_vali_half + self.seq_len//2)) + \
-                   list(range(num_total - num_train_half - num_vali_half - self.seq_len//2, num_total - num_train_half + self.seq_len//2)),
-                2:list(range(num_train_half + num_vali_half - self.seq_len, num_total - num_train_half - num_vali_half + self.seq_len))
+                1:list(range(num_train_half - self.seq_len//2, num_train_half + num_val_half + self.seq_len//2)) + \
+                   list(range(num_total - num_train_half - num_val_half - self.seq_len//2, num_total - num_train_half + self.seq_len//2)),
+                2:list(range(num_train_half + num_val_half - self.seq_len//2, num_total - num_train_half - num_val_half + self.seq_len//2))
             }
         else: # 기본적으로 
-            data_indices_obj = {
-                0: list(range(border1s[0], border2s[0])),
-                1: list(range(border1s[1], border2s[1])),
-                2: list(range(border1s[2], border2s[2]))
+            data_indices_obj = { 
+                k: list(range(border1s[k], border2s[k])) for k in range(3)
             }
 
 
@@ -272,11 +273,9 @@ class Dataset_Custom(Dataset):
             df_data = df_raw[[self.target]]
 
         train_indices = data_indices_obj[0]
-        train_indices_len = int(len(train_indices) * self.select_ratio)
-
-        # 랜덤하게 선택
-        if self.select_ratio <1:
-            train_indices = sorted(random.sample(train_indices, train_indices_len ))
+        
+       
+        # 스케일링
         if self.scale:
             
             train_data = df_data.iloc[train_indices]
@@ -287,8 +286,6 @@ class Dataset_Custom(Dataset):
         else:
             data = df_data.values
 
-        # train_data
-        selected_train_data = data[train_indices]
 
         df_stamp = df_raw[['date']].iloc[data_indices_obj[self.set_type]]
         df_stamp['date'] = pd.to_datetime(df_stamp.date)
@@ -302,19 +299,28 @@ class Dataset_Custom(Dataset):
             data_stamp = time_features(pd.to_datetime(df_stamp['date'].values), freq=self.freq)
             data_stamp = data_stamp.transpose(1, 0)
 
-        self.data_x = selected_train_data if self.select_ratio < 1 and self.set_type== 0 else data[data_indices_obj[self.set_type]] 
-        self.data_y = selected_train_data if self.select_ratio < 1 and self.set_type== 0 else data[data_indices_obj[self.set_type]] 
+        self.data_x = data[data_indices_obj[self.set_type]] 
+        self.data_y = data[data_indices_obj[self.set_type]] 
         self.data_stamp = data_stamp
 
     def __getitem__(self, index):
         s_begin = index
         s_end = s_begin + self.seq_len
-        r_begin = s_end - self.label_len
-        r_end = r_begin + self.label_len + self.pred_len
+        # augmented_token일 때 r_begin, r_end  재정의
+        if self.augmented_token:
+            r_begin = index
+            r_end = r_begin + self.seq_len + self.pred_len
+            aug_token = np.zeros((self.pred_len, self.data_x.shape[1]))
+        else: 
+            r_begin = s_end - self.label_len 
+            r_end = r_begin + self.label_len + self.pred_len 
 
-        seq_x = self.data_x[s_begin:s_end]
+        seq_x = self.data_x[s_begin:s_end] 
         seq_y = self.data_y[r_begin:r_end]
-        seq_x_mark = self.data_stamp[s_begin:s_end]
+        if self.augmented_token:
+            seq_x = np.vstack((self.data_x[s_begin:s_end], aug_token ))
+
+        seq_x_mark = self.data_stamp[s_begin:s_begin + len(seq_x)] 
         seq_y_mark = self.data_stamp[r_begin:r_end]
 
         return seq_x, seq_y, seq_x_mark, seq_y_mark
@@ -329,7 +335,8 @@ class Dataset_Custom(Dataset):
 class Dataset_PEMS(Dataset):
     def __init__(self, root_path, flag='train', size=None,
                  features='S', data_path='ETTh1.csv',
-                 target='OT', scale=True, timeenc=0, freq='h'):
+                 target='OT', scale=True, timeenc=0, freq='h',
+                 train_ratio=0.6, test_ratio=0.2, two_sided=False, augmented_token=False) :
         # size [seq_len, label_len, pred_len]
         # info
         self.seq_len = size[0]
@@ -346,6 +353,9 @@ class Dataset_PEMS(Dataset):
         self.timeenc = timeenc
         self.freq = freq
 
+        self.train_ratio = train_ratio
+        self.test_ratio = test_ratio
+
         self.root_path = root_path
         self.data_path = data_path
         self.__read_data__()
@@ -356,8 +366,8 @@ class Dataset_PEMS(Dataset):
         data = np.load(data_file, allow_pickle=True)
         data = data['data'][:, :, 0]
 
-        train_ratio = 0.6
-        valid_ratio = 0.2
+        train_ratio = self.train_ratio
+        valid_ratio = 1 - self.train_ratio - self.test_ratio
         train_data = data[:int(train_ratio * len(data))]
         valid_data = data[int(train_ratio * len(data)): int((train_ratio + valid_ratio) * len(data))]
         test_data = data[int((train_ratio + valid_ratio) * len(data)):]
@@ -397,7 +407,8 @@ class Dataset_PEMS(Dataset):
 class Dataset_Solar(Dataset):
     def __init__(self, root_path, flag='train', size=None,
                  features='S', data_path='ETTh1.csv',
-                 target='OT', scale=True, timeenc=0, freq='h'):
+                 target='OT', scale=True, timeenc=0, freq='h',
+                 train_ratio=0.7, test_ratio=0.2, two_sided=False, augmented_token=False):
         # size [seq_len, label_len, pred_len]
         # info
         self.seq_len = size[0]
@@ -413,6 +424,9 @@ class Dataset_Solar(Dataset):
         self.scale = scale
         self.timeenc = timeenc
         self.freq = freq
+        self.train_ratio = train_ratio
+        self.test_ratio = test_ratio
+        self.two_sided = two_sided
 
         self.root_path = root_path
         self.data_path = data_path
@@ -429,25 +443,46 @@ class Dataset_Solar(Dataset):
         df_raw = np.stack(df_raw, 0)
         df_raw = pd.DataFrame(df_raw)
 
-        num_train = int(len(df_raw) * 0.7)
-        num_test = int(len(df_raw) * 0.2)
-        num_valid = int(len(df_raw) * 0.1)
+        num_total = len(df_raw)
+        num_train = int(len(df_raw) * self.train_ratio)
+        num_test = int(len(df_raw) * self.test_ratio)
+        num_val = num_total - num_train - num_test
         border1s = [0, num_train - self.seq_len, len(df_raw) - num_test - self.seq_len]
-        border2s = [num_train, num_train + num_valid, len(df_raw)]
+        border2s = [num_train, num_train + num_val, len(df_raw)]
         border1 = border1s[self.set_type]
         border2 = border2s[self.set_type]
 
+        num_train_half = num_train // 2 # half of train data
+        num_val_half = num_val // 2 # half of vali data
+
+
+        if self.two_sided: # 양쪽으로 train, vali test 잡을 때
+            data_indices_obj = {
+                0:list(range(num_train_half + self.seq_len//2)) + list(range(num_total - num_train_half + self.seq_len//2, num_total)), 
+                1:list(range(num_train_half - self.seq_len//2, num_train_half + num_val_half + self.seq_len//2)) + \
+                   list(range(num_total - num_train_half - num_val_half - self.seq_len//2, num_total - num_train_half + self.seq_len//2)),
+                2:list(range(num_train_half + num_val_half - self.seq_len//2, num_total - num_train_half - num_val_half + self.seq_len//2))
+            }
+        else: # 기본적으로 
+            data_indices_obj = { 
+                k: list(range(border1s[k], border2s[k])) for k in range(3)
+            }
+
+
         df_data = df_raw.values
 
+        train_indices = data_indices_obj[0]
+
+        # 스케일링
         if self.scale:
-            train_data = df_data[border1s[0]:border2s[0]]
+            train_data = df_data[train_indices]
             self.scaler.fit(train_data)
             data = self.scaler.transform(df_data)
         else:
             data = df_data
 
-        self.data_x = data[border1:border2]
-        self.data_y = data[border1:border2]
+        self.data_x = data[data_indices_obj[self.set_type]] 
+        self.data_y = data[data_indices_obj[self.set_type]] 
 
     def __getitem__(self, index):
         s_begin = index
@@ -472,7 +507,8 @@ class Dataset_Solar(Dataset):
 class Dataset_Pred(Dataset):
     def __init__(self, root_path, flag='pred', size=None,
                  features='S', data_path='ETTh1.csv',
-                 target='OT', scale=True, inverse=False, timeenc=0, freq='15min', cols=None):
+                 target='OT', scale=True, inverse=False, timeenc=0, freq='15min', cols=None,
+                 train_ratio=0.7, test_ratio=0.2, two_sided=False, augmented_token=False ):
         # size [seq_len, label_len, pred_len]
         # info
         if size == None:

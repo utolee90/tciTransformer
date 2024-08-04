@@ -1,4 +1,4 @@
-export CUDA_VISIBLE_DEVICES=1
+export CUDA_VISIBLE_DEVICES=0
 
 model_name=iTransformer
 
@@ -20,7 +20,8 @@ python -u run.py \
   --d_model 512 \
   --d_ff 512 \
   --learning_rate 0.001 \
-  --itr 1
+  --itr 1\
+  --train_ratio 0.6
 
 python -u run.py \
   --is_training 1 \
@@ -40,7 +41,8 @@ python -u run.py \
   --d_model 512 \
   --d_ff 512 \
   --learning_rate 0.001 \
-  --itr 1
+  --itr 1\
+  --train_ratio 0.6
 
 
 python -u run.py \
@@ -61,7 +63,8 @@ python -u run.py \
   --d_model 512 \
   --d_ff 512 \
   --learning_rate 0.001 \
-  --itr 1
+  --itr 1\
+  --train_ratio 0.6
 
 
 python -u run.py \
@@ -82,4 +85,5 @@ python -u run.py \
   --d_model 512 \
   --d_ff 512 \
   --learning_rate 0.001 \
-  --itr 1
+  --itr 1\
+  --train_ratio 0.6

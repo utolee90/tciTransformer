@@ -1,6 +1,6 @@
-# iTransformer
+# TCiTransformer
 
-The repo is the official implementation for the paper: [iTransformer: Inverted Transformers Are Effective for Time Series Forecasting](https://arxiv.org/abs/2310.06625). [[Slides]](https://cloud.tsinghua.edu.cn/f/175ff98f7e2d44fbbe8e/), [[Poster]](https://cloud.tsinghua.edu.cn/f/36a2ae6c132d44c0bd8c/).
+The repo is about TCiTransformer, an improved model from [iTransformer: Inverted Transformers Are Effective for Time Series Forecasting](https://arxiv.org/abs/2310.06625).
 
 # Basic Info
 Please see [iTrnasformer Main Link](https://github.com/thuml/iTransformer)
@@ -27,7 +27,7 @@ The pseudo-code of iTransformer is as simple as the following:
 pip install -r requirements.txt
 ```
 
-1. The datasets can be obtained from [Google Drive](https://drive.google.com/file/d/1l51QsKvQPcqILT3DwfjCgx8Dsg2rpjot/view?usp=drive_link) or [Tsinghua Cloud](https://cloud.tsinghua.edu.cn/f/2ea5ca3d621e4e5ba36a/).
+1. The datasets can be obtained from [Google Drive](https://drive.google.com/drive/folders/15Wj4pGPCU0IkBExQGXNXI-13HhpC5_nC?usp=sharing).
 
 2. Train and evaluate the model. We provide all the above tasks under the folder ./scripts/. You can reproduce the results as the following examples:
 
@@ -48,82 +48,70 @@ bash ./scripts/increasing_lookback/Traffic/iTransformer.sh
 bash ./scripts/efficient_attentions/iFlashTransformer.sh
 ```
 
-## How To Use
+### About run.py
 The hyperparameter settings are stated in run.py.
+* Every variable is defined like that:
+```
+  parser.add_argument('--model_id', type=str, required=True, default='test', help='model id')
+```
 
-For using script, please use scripts.
+To use the argument you shoud type like this:
+```
+  python run.py --model_id Sample_model_name ...
+```
+* Options of parameter
+  * type : type of given variable (str, int, float, etc.)
+  * required : If the option is set 'true', you should define the value in order to run the script.
+  * default: the default value of
+  * help : the introduction of the given variable
+  * action : If the option is set, then certain action will be done. For example, 'store_true' means the parameter is set to be 'true' if user sets the parameter.
 
+## About Source
 
+### Overview
+* `/checkpoints` - Saving last model parameter
+* `/data_provider` - Defining data structure. 
+* `/dataset` - Initially not given and you should download the dataset from [Google Drive](https://drive.google.com/file/d/1l51QsKvQPcqILT3DwfjCgx8Dsg2rpjot/view?usp=drive_link) (추가 데이터가 있으므로 추가 변경 예정)
+* `/experiments` - Sources related to experiments
+* `/figures` - Store figures used for the paper
+* `/layers` - About embedded layers of model
+* `/model` - Define models for time series forecasting
+* `/results` - Store predicted data and actual data when tested
+* `/scripts` - Scripts performing time series forecasting using model
+* `/test_results` - Store graphs of targetted variable comparing prediction and real value.
 
-## Main Result of Multivariate Forecasting
+## Testing 
+
+### Adding more metrics
+
+To verify the accuracy of our model, we use other metrics such as signed MAE and mean value of correlation of targetted variables. 
+* Signed MAE - Mean difference of real value and predicted value. It checks whether predicted value tend to be underestimated(SMAE>0) or overestimated(SMAE<0). The result is better when it is close to zero.
+* Mean correlation of last variable between (predicted and actual value) - Checks the tendency of coincidence between estimated value and real value. The result is ideal if it is close to 1.
 
 ## General Performance Boosting on Transformers
 
-By introducing the proposed framework, Transformer and its variants achieve **significant performance improvement**, demonstrating the **generality of the iTransformer approach** and **benefiting from efficient attention mechanisms**.
+### Results about long-term forecasting
 
-<p align="center">
-<img src="./figures/boosting.png" alt="" align=center />
-</p>
-
-## Zero-shot Generalization on Variates
-
-**Technically, iTransformer is able to forecast with arbitrary numbers of variables**. We train iTransformers on partial variates and forecast unseen variates with good generalizability.
-
-<p align="center">
-<img src="./figures/generability.png" alt="" align=center />
-</p>
-
-## Better Utilization of Lookback Windows
-
-While previous Transformers do not benefit from the enlarged lookback window. iTransformers show a surprising **improvement with the increasing length of the lookback window**.
-
-<p align="center">
-<img src="./figures/increase_lookback.png" alt="" align=center />
-</p>
-
-## Model Analysis
-
-Benefiting from inverted Transformer modules: 
-
-- (Left) Inverted Transformers learn **better time series representations** (more similar [CKA](https://github.com/jayroxis/CKA-similarity)) favored by forecasting.
-- (Right) The inverted self-attention module learns **interpretable multivariate correlations**.
-
-<p align="center">
-<img src="./figures/analysis.png" alt="" align=center />
-</p>
-
-- Visualization of the variates from Market and the learned multivariate correlations. Each variate represents the monitored interface values of an application, and the applications can be further grouped into refined categories.
-
-<p align="center">
-<img src="./figures/groups.png" alt="" align=center />
-</p>
-
-## Model Abalations
-
-iTransformer that utilizes attention on variate dimensions and feed-forward on temporal dimension generally achieves the best performance. However, the performance of vanilla Transformer (the third row) performs the worst among these designs, **indicating the disaccord of responsibility when the conventional architecture is adopted**.
-
-<p align="center">
-<img src="./figures/ablations.png" alt="" align=center />
-</p>
-
-## Model Efficiency
-
-We propose a training strategy for high-dimensional time series. While the performance (Left) remains stable on partially trained variates of each batch with the sampled ratios, the memory footprint (Right) of the training process can be cut off significantly.
-
-<p align="center">
-<img src="./figures/efficient.png" alt="" align=center />
-</p>
+### Ablation Study
+We will check the ablation study for TCiTransformer:
+[] Find hyperparameters ideal for time series forecasting :
+  * About TCN embedding layer - num of layers, 
+  * About Attention
+  * About Transformer layer - number of layers, inner dimension, 
+  * Use augmented token instead of usual time series token
+[x] Check the results depending on the length of input
+[x] Check the results depending on the ratio of trained/tested data
 
 ## Citation
 
 If you find this repo helpful, please cite our paper. 
 
 ```
-@article{liu2023itransformer,
-  title={iTransformer: Inverted Transformers Are Effective for Time Series Forecasting},
-  author={Liu, Yong and Hu, Tengge and Zhang, Haoran and Wu, Haixu and Wang, Shiyu and Ma, Lintao and Long, Mingsheng},
-  journal={arXiv preprint arXiv:2310.06625},
-  year={2023}
+@article{utolee90/tcitransformer,
+  title={TCiTransformer:An elaborate way to via TCN },
+  author={Lee, Yohan and Park, Sanghak and Park, Seyeon and Ji, Daeun and Jang, Beakcheol},
+  journal={arXiv preprint arXiv:-},
+  year={2024}
 }
 ```
 
@@ -138,10 +126,9 @@ We appreciate the following GitHub repos a lot for their valuable code and effor
 - Time-Series-Library (https://github.com/thuml/Time-Series-Library)
 - lucidrains (https://github.com/lucidrains/iTransformer)
 
-This work was also supported by Ant Group through the CCF-Ant Research Fund. 
+This work was also supported by NRF fund through the CCF-Ant Research Fund. 
 
 ## Contact
 
 If you have any questions or want to use the code, feel free to contact:
-* Yong Liu (liuyong21@mails.tsinghua.edu.cn)
-* Haoran Zhang (z-hr20@mails.tsinghua.edu.cn)
+* Lee, Yohan (utopiamath@yonsei.ac.kr)

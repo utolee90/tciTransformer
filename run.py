@@ -5,6 +5,8 @@ from experiments.exp_long_term_forecasting_partial import Exp_Long_Term_Forecast
 import random
 import numpy as np
 import os
+import time
+from decimal import Decimal
 
 if __name__ == '__main__':
     fix_seed = 2023
@@ -19,7 +21,7 @@ if __name__ == '__main__':
     parser.add_argument('--is_training', type=int, required=True, default=1, help='status')
     parser.add_argument('--model_id', type=str, required=True, default='test', help='model id')
     parser.add_argument('--model', type=str, required=True, default='iTransformer',
-                        help='model name, options: [iTransformer, iInformer, iReformer, iFlowformer, iFlashformer]')
+                        help='model name, options: [iTransformer, iInformer, iReformer, iFlowformer, iFlashformer, iTransformer_TCN]')
 
     # data loader
     parser.add_argument('--data', type=str, required=True, default='custom', help='dataset type')
@@ -33,7 +35,7 @@ if __name__ == '__main__':
     parser.add_argument('--checkpoints', type=str, default='./checkpoints/', help='location of model checkpoints')
     parser.add_argument('--train_ratio', type=float, default=0.7, help='train data ratio')
     parser.add_argument('--test_ratio', type=float, default=0.2, help='test data ratio')
-    parser.add_argument('--select_ratio', type=float, default=1.0, help='select data ratio')
+    # parser.add_argument('--select_ratio', type=float, default=1.0, help='select data ratio')
     parser.add_argument('--two_sided', action='store_true', default=False, help='whether selecting train data as two-sided')
 
     # forecasting task
@@ -100,6 +102,7 @@ if __name__ == '__main__':
     parser.add_argument('--tcn_dropout', type=float, default=0.1, help='dropout rate of TCN embedding field')
     parser.add_argument('--tcn_uniform_layer', action='store_false', help='whether tcn_layer size is uniform', default=True)
     parser.add_argument('--tcn_bias', action='store_false', help='Use Bias in TCN Layers', default=True)
+    parser.add_argument('--augmented_token', action='store_true', help='Use augmented input token with 0 with pred_len instead of usual input token', default=False)
 
     args = parser.parse_args()
     args.use_gpu = True if torch.cuda.is_available() and args.use_gpu else False
@@ -117,30 +120,37 @@ if __name__ == '__main__':
         Exp = Exp_Long_Term_Forecast_Partial
     else: # MTSF: multivariate time series forecasting
         Exp = Exp_Long_Term_Forecast
+    
+    tcn_add_text = ""
+
+    if args.tcn_uniform_layer: tcn_add_text += "uni_"
+    if args.tcn_bias: tcn_add_text += "bias_"
+    if args.augmented_token: tcn_add_text += "aug_"
+    if tcn_add_text == "": tcn_add_text = "_"
 
     # tciTransformer 관련 셋팅
     if args.model == "iTransformer_TCN":
-        tcn_add = "tcn-{}_{}_{}_{}_{}_".format(
+        tcn_add = "tcn-{}_{}_{}_{}".format(
             args.tcn_layers,
             args.tcn_kernel_size,
             args.tcn_dropout,
-            args.tcn_uniform_layer,
-            args.tcn_bias
+            tcn_add_text
         )
     else:
         tcn_add = ""
     
-    drate_seq = "tr{}x{}-va{}-te{}".format(
+    drate_seq = "tr{}-va{}-te{}".format(
         args.train_ratio,
-        args.select_ratio,
-        1 - args.train_ratio - args.test_ratio,
+        str(Decimal(1) - Decimal(str(args.train_ratio)) - Decimal(str(args.test_ratio))),
         f"{args.test_ratio}-2s" if args.two_sided else args.test_ratio
     )
+
+    timestamp = int(time.time())
 
     if args.is_training:
         for ii in range(args.itr):
             # setting record of experiments
-            setting = '{}_{}_{}_{}_ft{}_sl{}_ll{}_pl{}_dm{}_nh{}_el{}_dl{}_df{}_fc{}_eb{}_dt{}_{}_drate_{}_{}'.format(
+            setting = '{}_{}_{}_{}_ft{}_sl{}_ll{}_pl{}_dm{}_nh{}_el{}_dl{}_df{}_fc{}_eb{}_dt{}_{}_drate_{}_{}({})'.format(
                 args.model_id,
                 args.model,
                 args.data,
@@ -159,7 +169,14 @@ if __name__ == '__main__':
                 args.des,
                 args.class_strategy, 
                 drate_seq,
-                tcn_add + str(ii))
+                tcn_add + str(ii),
+                timestamp)
+            
+            #setting이 너무 길어지므로 model_id + model + timestamp만 남기고 대신 argment를 text에 저장
+            with open('exp_arguments_store.txt', 'a', encoding='utf8') as X:
+                X.write(str(timestamp) + " :::" + str(args) + '\n')
+            
+            setting = f'{args.model_id}_M{args.model}_{args.data_path}_{timestamp}'
 
             exp = Exp(args)  # set experiments
             print('>>>>>>>start training : {}>>>>>>>>>>>>>>>>>>>>>>>>>>'.format(setting))
@@ -175,7 +192,7 @@ if __name__ == '__main__':
             torch.cuda.empty_cache()
     else:
         ii = 0
-        setting = '{}_{}_{}_{}_ft{}_sl{}_ll{}_pl{}_dm{}_nh{}_el{}_dl{}_df{}_fc{}_eb{}_dt{}_{}_drate{}_{}'.format(
+        setting = '{}_{}_{}_{}_ft{}_sl{}_ll{}_pl{}_dm{}_nh{}_el{}_dl{}_df{}_fc{}_eb{}_dt{}_{}_drate{}_{}({})'.format(
             args.model_id,
             args.model,
             args.data,
@@ -194,7 +211,14 @@ if __name__ == '__main__':
             args.des,
             args.class_strategy, 
             drate_seq,
-            tcn_add+ str(ii))
+            tcn_add+ str(ii),
+            timestamp)
+        
+        #setting이 너무 길어지므로 model_id + model + timestamp만 남기고 대신 argment를 text에 저장
+        with open('exp_arguments_store.txt', 'a', encoding='utf8') as X:
+            X.write(str(timestamp) + " :::" + str(args) + '\n')
+            
+        setting = f'{args.model_id}_M{args.model}_{args.data_path}_{timestamp}'
 
         exp = Exp(args)  # set experiments
         print('>>>>>>>testing : {}<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<'.format(setting))

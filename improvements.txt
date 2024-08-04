@@ -1,0 +1,11 @@
+모델 개선사항 정리
+
+202407xx
+utils/metrics.py에 Signed MAE(SMAE), Correlation, Rate of values over 3-sigma.
+
+20240804 
+- PEMS, SolarEnergy, Traffic, Weather, Exchange - train, test 비율 조정 옵션 추가 (ETT는 구조상 어려움.)
+- iTransformer_TCN 모델에서 augmented_token 옵션 추가 - (입력시 0이 추가된 토큰 입력, 출력시엔 원본+예측값 형태로 학습) (dataset_custom만 학습가능. 실험중)
+- settings 명명규칙 변경 - model_id, 데이터셋 이름, 타임스탬프 형식으로 간소화.
+- exp_arguments_store.txt 파일을 통해 run.py의 모든 변수를 자동 저장할 수 있게 처리.
+- Yohan 개인 구글 드라이브에 사용한 데이터파일 공유. 
