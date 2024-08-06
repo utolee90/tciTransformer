@@ -36,14 +36,44 @@ def R2score(pred, true): # R2 score 값
 def SMAE(pred, true): # signed mae, 실제값 - 예측값
     return np.mean(true-pred)
 
-def REC_CORR(pred, true): # 상관계수 3차원
-    cf = np.zeros(pred.shape[0])
-    for j in range(pred.shape[0]):
-        pred_part = pred[j,:,-1] # last variable
-        true_part = true[j,:,-1]
-        cf[j] = np.corrcoef(pred_part, true_part)[0,1] # 상관계수
+# 상관계수 추측
+def REC_CORR(pred, true, flag='mean'): 
     
-    return np.mean(cf) # 상관계수 평균
+    # 2차원 - 개별변수
+    if pred.ndim == 2:
+        if flag in  ['mean', 'average', 'me', 'avg']:
+            return np.mean(np.array([np.corrcoef(pred[j,:], true[j,:])[0,1] for j in range(len(pred)) if not np.isnan(np.corrcoef(pred[j,:], true[j,:])[0,1])]))
+        elif flag in ['median', 'med']:
+            return np.median(np.array([np.corrcoef(pred[j,:], true[j,:])[0,1] for j in range(len(pred)) if not np.isnan(np.corrcoef(pred[j,:], true[j,:])[0,1])]))
+        else:
+            return 
+    elif pred.ndim == 3:
+        if flag == 'mean_total':
+            return np.mean(np.array(
+                    [
+                        [np.corrcoef(pred[j,:,k], true[j,:,k])[0,1] for k in range(pred.shape[2]) if not np.isnan(np.corrcoef(pred[j,:,k], true[j,:,k])[0,1])] 
+                        for j in range(len(pred))
+                    ])
+                )
+        elif flag == 'median_total':
+            return np.median(np.array(
+                    [
+                        [np.corrcoef(pred[j,:,k], true[j,:,k])[0,1] for k in range(pred.shape[2]) if not np.isnan(np.corrcoef(pred[j,:,k], true[j,:,k])[0,1])] 
+                        for j in range(len(pred))
+                    ])
+                )
+        elif flag in  ['mean', 'average', 'me', 'avg']:
+            return np.mean([
+                np.mean([np.corrcoef(pred[j,:,k], true[j,:,k])[0,1] for j in range(len(pred)) if not np.isnan(np.corrcoef(pred[j,:,k], true[j,:,k]))[0,1]])
+                for k in range(pred.shape[2])
+            ])
+        elif flag in ['median', 'med']:
+            return np.median([
+                np.median([np.corrcoef(pred[j,:,k], true[j,:,k])[0,1] for j in range(len(pred)) if not np.isnan(np.corrcoef(pred[j,:,k], true[j,:,k]))[0,1]])
+                for k in range(pred.shape[2])
+            ])
+        else:
+            return 
  
 def RATIO_IRR(pred, true, coef=2): # 오차값 분석. 기본값 표준편차 2
     
@@ -60,6 +90,7 @@ def RATIO_IRR(pred, true, coef=2): # 오차값 분석. 기본값 표준편차 2
     large_error_ratio = np.sum(large_errors) / np.size(true)
     
     return large_error_ratio
+
 
 
 def metric(pred, true):

@@ -37,6 +37,7 @@ if __name__ == '__main__':
     parser.add_argument('--test_ratio', type=float, default=0.2, help='test data ratio')
     # parser.add_argument('--select_ratio', type=float, default=1.0, help='select data ratio')
     parser.add_argument('--two_sided', action='store_true', default=False, help='whether selecting train data as two-sided')
+    parser.add_argument('--train_step', type=float, default=1.0, help='train data with certain stes. for example train_step=2 means only train even number of data')
 
     # forecasting task
     parser.add_argument('--seq_len', type=int, default=96, help='input sequence length')
@@ -75,7 +76,6 @@ if __name__ == '__main__':
     parser.add_argument('--loss', type=str, default='MSE', help='loss function')
     parser.add_argument('--lradj', type=str, default='type1', help='adjust learning rate')
     parser.add_argument('--use_amp', action='store_true', help='use automatic mixed precision training', default=False)
-    parser.add_argument('--first_val_adjustment', action='store_true', default=False, help='adjust first prediction value to true value')
 
     # GPU
     parser.add_argument('--use_gpu', type=bool, default=True, help='use gpu')

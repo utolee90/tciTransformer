@@ -61,6 +61,7 @@ class Dataset_ETT_hour(Dataset):
             train_data = df_data[border1s[0]:border2s[0]]
             self.scaler.fit(train_data.values)
             data = self.scaler.transform(df_data.values)
+            # data += 10 # 알괄적으로 양수로 만들기 위해 작업.
         else:
             data = df_data.values
 
@@ -150,6 +151,7 @@ class Dataset_ETT_minute(Dataset):
             train_data = df_data[border1s[0]:border2s[0]]
             self.scaler.fit(train_data.values)
             data = self.scaler.transform(df_data.values)
+            # data += 10 # 알괄적으로 양수로 만들기 위해 작업.
         else:
             data = df_data.values
 
@@ -282,6 +284,7 @@ class Dataset_Custom(Dataset):
 
             self.scaler.fit(train_data.values)
             data = self.scaler.transform(df_data.values)
+            # data += 10 # 알괄적으로 양수로 만들기 위해 작업.
             
         else:
             data = df_data.values
@@ -377,6 +380,7 @@ class Dataset_PEMS(Dataset):
         if self.scale:
             self.scaler.fit(train_data)
             data = self.scaler.transform(data)
+            # data += 10 # 알괄적으로 양수로 만들기 위해 작업.
 
         df = pd.DataFrame(data)
         df = df.fillna(method='ffill', limit=len(df)).fillna(method='bfill', limit=len(df)).values
@@ -478,6 +482,7 @@ class Dataset_Solar(Dataset):
             train_data = df_data[train_indices]
             self.scaler.fit(train_data)
             data = self.scaler.transform(df_data)
+            # data += 10 # 알괄적으로 양수로 만들기 위해 작업.
         else:
             data = df_data
 

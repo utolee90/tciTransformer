@@ -9,6 +9,7 @@ import os
 import time
 import warnings
 import numpy as np
+import random
 
 warnings.filterwarnings('ignore')
 
@@ -96,6 +97,10 @@ class Exp_Long_Term_Forecast(Exp_Basic):
         model_optim = self._select_optimizer()
         criterion = self._select_criterion()
 
+        train_len = len(train_data)
+        selected_indices = [int(i* self.args.train_step) for i in range(int(train_len/self.args.train_step)+1) if i* self.args.train_step<= train_len ]
+
+
         if self.args.use_amp:
             scaler = torch.cuda.amp.GradScaler()
 
@@ -106,24 +111,36 @@ class Exp_Long_Term_Forecast(Exp_Basic):
             self.model.train()
             epoch_time = time.time()
             for i, (batch_x, batch_y, batch_x_mark, batch_y_mark) in enumerate(train_loader):
-                iter_count += 1
-                model_optim.zero_grad()
-                batch_x = batch_x.float().to(self.device)
-                batch_y = batch_y.float().to(self.device)
-                if 'PEMS' in self.args.data or 'Solar' in self.args.data:
-                    batch_x_mark = None
-                    batch_y_mark = None
-                else:
-                    batch_x_mark = batch_x_mark.float().to(self.device)
-                    batch_y_mark = batch_y_mark.float().to(self.device)
+                if i in selected_indices:
+                    iter_count += 1
+                    model_optim.zero_grad()
+                    batch_x = batch_x.float().to(self.device)
+                    batch_y = batch_y.float().to(self.device)
+                    if 'PEMS' in self.args.data or 'Solar' in self.args.data:
+                        batch_x_mark = None
+                        batch_y_mark = None
+                    else:
+                        batch_x_mark = batch_x_mark.float().to(self.device)
+                        batch_y_mark = batch_y_mark.float().to(self.device)
 
-                # decoder input
-                dec_inp = torch.zeros_like(batch_y[:, -self.args.pred_len:, :]).float()
-                dec_inp = torch.cat([batch_y[:, :self.args.label_len, :], dec_inp], dim=1).float().to(self.device)
+                    # decoder input
+                    dec_inp = torch.zeros_like(batch_y[:, -self.args.pred_len:, :]).float()
+                    dec_inp = torch.cat([batch_y[:, :self.args.label_len, :], dec_inp], dim=1).float().to(self.device)
 
-                # encoder - decoder
-                if self.args.use_amp:
-                    with torch.cuda.amp.autocast():
+                    # encoder - decoder
+                    if self.args.use_amp:
+                        with torch.cuda.amp.autocast():
+                            if self.args.output_attention:
+                                outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)[0]
+                            else:
+                                outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
+
+                            f_dim = -1 if self.args.features == 'MS' else 0
+                            outputs = outputs[:, -self.args.pred_len:, f_dim:]
+                            batch_y = batch_y[:, -self.args.pred_len:, f_dim:].to(self.device)
+                            loss = criterion(outputs, batch_y)
+                            train_loss.append(loss.item())
+                    else:
                         if self.args.output_attention:
                             outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)[0]
                         else:
@@ -134,33 +151,23 @@ class Exp_Long_Term_Forecast(Exp_Basic):
                         batch_y = batch_y[:, -self.args.pred_len:, f_dim:].to(self.device)
                         loss = criterion(outputs, batch_y)
                         train_loss.append(loss.item())
-                else:
-                    if self.args.output_attention:
-                        outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)[0]
+
+                    if (iter_count) % 100 == 0:
+                        done_len, remain_len = len(list(filter(lambda x: x<=i, selected_indices))), len(list(filter(lambda x: x>i, selected_indices)))
+                        print("\titers: {0}, epoch: {1} | loss: {2:.7f}".format(done_len, epoch + 1, loss.item()))
+                        speed = (time.time() - time_now) / iter_count
+                        left_time = speed * ((self.args.train_epochs - epoch) * remain_len )
+                        print('\tspeed: {:.4f}s/iter; left time: {:.4f}s'.format(speed, left_time))
+                        iter_count = 0
+                        time_now = time.time()
+
+                    if self.args.use_amp:
+                        scaler.scale(loss).backward()
+                        scaler.step(model_optim)
+                        scaler.update()
                     else:
-                        outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
-
-                    f_dim = -1 if self.args.features == 'MS' else 0
-                    outputs = outputs[:, -self.args.pred_len:, f_dim:]
-                    batch_y = batch_y[:, -self.args.pred_len:, f_dim:].to(self.device)
-                    loss = criterion(outputs, batch_y)
-                    train_loss.append(loss.item())
-
-                if (i + 1) % 100 == 0:
-                    print("\titers: {0}, epoch: {1} | loss: {2:.7f}".format(i + 1, epoch + 1, loss.item()))
-                    speed = (time.time() - time_now) / iter_count
-                    left_time = speed * ((self.args.train_epochs - epoch) * train_steps - i)
-                    print('\tspeed: {:.4f}s/iter; left time: {:.4f}s'.format(speed, left_time))
-                    iter_count = 0
-                    time_now = time.time()
-
-                if self.args.use_amp:
-                    scaler.scale(loss).backward()
-                    scaler.step(model_optim)
-                    scaler.update()
-                else:
-                    loss.backward()
-                    model_optim.step()
+                        loss.backward()
+                        model_optim.step()
 
             print("Epoch: {} cost time: {}".format(epoch + 1, time.time() - epoch_time))
             train_loss = np.average(train_loss)
@@ -257,12 +264,6 @@ class Exp_Long_Term_Forecast(Exp_Basic):
         trues = trues.reshape(-1, trues.shape[-2], trues.shape[-1])
         print('test shape:', preds.shape, trues.shape)
 
-        # shifing to initial value - just for verification.
-        if self.args.first_val_adjustment:
-            shifts = trues[:,:1,:] - preds[:,:1,:] # find difference of initial values
-            shifts = np.repeat(shifts, preds.shape[1], axis=1)
-            preds = preds + shifts # shift to initial value - verifying tester
-
         # result save
         folder_path = './results/' + setting + '/'
         if not os.path.exists(folder_path):
@@ -270,18 +271,19 @@ class Exp_Long_Term_Forecast(Exp_Basic):
 
         mae, mse, rmse, mape, mspe = metric(preds, trues)
         
+        corr = REC_CORR(preds, trues)
         smae = SMAE(preds, trues)
         tt_mae_ration = RATIO_IRR(preds, trues, 3)
         pred_last = preds[:,:,-1]
         true_last = trues[:,:,-1]
         mae_last, mse_last, rmse_last, mape_last, mspe_last = metric(pred_last, true_last)
-        corr_last = REC_CORR(preds, trues)
+        corr_last = REC_CORR(pred_last, true_last)
         smae_last = SMAE(pred_last, true_last)
         tt_mae_ration_last = RATIO_IRR(pred_last, true_last, 3)
-        write_msg = 'mse:{}, mae:{}, smae:{}, irr_ratio(3):{}'.format(mse, mae, smae, tt_mae_ration)
+        write_msg = 'mse:{}, mae:{}, smae:{}, irr_ratio(3):{}, mean_corr:{}'.format(mse, mae, smae, tt_mae_ration, corr)
         print(write_msg)
-        write_msg_2 = 'mse_last:{}, mae_last:{}, corr_last:{}, smae_last:{}, irr_ratio_last(3):{}'.format(
-            mse_last, mae_last, corr_last, smae_last, tt_mae_ration_last
+        write_msg_2 = 'mse_last:{}, mae_last:{}, smae_last:{}, irr_ratio_last(3):{}, corr_last:{}'.format(
+            mse_last, mae_last, smae_last, tt_mae_ration_last, corr_last
             )
         print(write_msg_2)
         f = open("result_long_term_forecast.txt", 'a')
@@ -292,7 +294,7 @@ class Exp_Long_Term_Forecast(Exp_Basic):
         f.write('\n')
         f.close()
 
-        np.save(folder_path + 'metrics.npy', np.array([mae, mse, rmse, mape, mspe, smae, tt_mae_ration]))
+        np.save(folder_path + 'metrics.npy', np.array([mae, mse, rmse, mape, mspe, corr, smae, tt_mae_ration ]))
         np.save(folder_path + 'metrics_last.npy', np.array([mae_last, mse_last, rmse_last, mape_last, mspe_last, corr_last, smae_last, tt_mae_ration_last]))
         np.save(folder_path + 'pred.npy', preds)
         np.save(folder_path + 'true.npy', trues)
