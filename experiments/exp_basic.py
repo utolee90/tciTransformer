@@ -1,7 +1,7 @@
 import os
 import torch
 from model import Transformer, Informer, Reformer, Flowformer, Flashformer, \
-    iTransformer, iInformer, iReformer, iFlowformer, iFlashformer, iTransformer_TCN, iTransformer_TCN_proj
+    iTransformer, iInformer, iReformer, iFlowformer, iFlashformer, iTransformer_TCN
 
 
 class Exp_Basic(object):
@@ -18,8 +18,7 @@ class Exp_Basic(object):
             'iReformer': iReformer,
             'iFlowformer': iFlowformer,
             'iFlashformer': iFlashformer,
-            'iTransformer_TCN': iTransformer_TCN,
-            'iTransformer_TCN_proj': iTransformer_TCN_proj,
+            'iTransformer_TCN': iTransformer_TCN
         }
         self.device = self._acquire_device()
         self.model = self._build_model().to(self.device)

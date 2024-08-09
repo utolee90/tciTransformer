@@ -35,7 +35,6 @@ if __name__ == '__main__':
     parser.add_argument('--checkpoints', type=str, default='./checkpoints/', help='location of model checkpoints')
     parser.add_argument('--train_ratio', type=float, default=0.7, help='train data ratio')
     parser.add_argument('--test_ratio', type=float, default=0.2, help='test data ratio')
-    # parser.add_argument('--select_ratio', type=float, default=1.0, help='select data ratio')
     parser.add_argument('--two_sided', action='store_true', default=False, help='whether selecting train data as two-sided')
     parser.add_argument('--train_step', type=float, default=1.0, help='train data with certain stes. for example train_step=2 means only train even number of data')
 
@@ -43,6 +42,7 @@ if __name__ == '__main__':
     parser.add_argument('--seq_len', type=int, default=96, help='input sequence length')
     parser.add_argument('--label_len', type=int, default=48, help='start token length') # no longer needed in inverted Transformers
     parser.add_argument('--pred_len', type=int, default=96, help='prediction sequence length')
+    parser.add_argument('--seasonal_trend', action='store_true', default=False, help='use seasonal-trend decomposition')
 
     # model define
     parser.add_argument('--enc_in', type=int, default=7, help='encoder input size')

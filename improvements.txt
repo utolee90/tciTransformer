@@ -9,3 +9,8 @@ utils/metrics.py에 Signed MAE(SMAE), Correlation, Rate of values over 3-sigma.
 - settings 명명규칙 변경 - model_id, 데이터셋 이름, 타임스탬프 형식으로 간소화.
 - exp_arguments_store.txt 파일을 통해 run.py의 모든 변수를 자동 저장할 수 있게 처리.
 - Yohan 개인 구글 드라이브에 사용한 데이터파일 공유. 
+
+20240809
+- Statsmodel 패키지 사용해서 seasonal trend decomposition 옵션 반영
+- Filtering 모델 구현 완료.
+- Seasonal Trend decomposition 모델을 이용해서 토큰 변형 옵션 추가 (dataset=custom_std)

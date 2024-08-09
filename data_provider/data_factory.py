@@ -46,7 +46,8 @@ def data_provider(args, flag):
         train_ratio=args.train_ratio, 
         test_ratio=args.test_ratio, 
         two_sided=args.two_sided,
-        augmented_token = args.augmented_token and args.model == 'iTransformer_TCN'
+        augmented_token = args.augmented_token and args.model == 'iTransformer_TCN',
+        seasonal_trend = args.seasonal_trend
     )
     print(flag, len(data_set))
     data_loader = DataLoader(

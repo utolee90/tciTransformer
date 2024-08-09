@@ -1,6 +1,6 @@
 from data_provider.data_factory import data_provider
 from experiments.exp_basic import Exp_Basic
-from utils.tools import EarlyStopping, adjust_learning_rate, visual
+from utils.tools import EarlyStopping, adjust_learning_rate, visual, FilterSegmentTorch
 from utils.metrics import metric, REC_CORR, SMAE, RATIO_IRR
 import torch
 import torch.nn as nn
@@ -98,7 +98,10 @@ class Exp_Long_Term_Forecast(Exp_Basic):
         criterion = self._select_criterion()
 
         train_len = len(train_data)
-        selected_indices = [int(i* self.args.train_step) for i in range(int(train_len/self.args.train_step)+1) if i* self.args.train_step<= train_len ]
+        if self.args.train_step >=1.0:
+            selected_indices = [int(i* self.args.train_step) for i in range(int(train_len/self.args.train_step)+1) if i* self.args.train_step<= train_len ]
+        elif self.args.train_step <= 0.0:
+            selected_indices = FilterSegmentTorch(train_data).filter_elements()[1]
 
 
         if self.args.use_amp:
@@ -242,8 +245,12 @@ class Exp_Long_Term_Forecast(Exp_Basic):
                     outputs = test_data.inverse_transform(outputs.squeeze(0)).reshape(shape)
                     batch_y = test_data.inverse_transform(batch_y.squeeze(0)).reshape(shape)
 
-                pred = outputs
-                true = batch_y
+                if self.args.seasonal_trend:
+                    pred = outputs[:, :, 0:outputs.shape[2]:2] + outputs[:, :, 1:outputs.shape[2]:2]
+                    true = batch_y[:, :, 0:outputs.shape[2]:2] + batch_y[:, :, 1:outputs.shape[2]:2]
+                else:
+                    pred = outputs
+                    true = batch_y
 
                 preds.append(pred)
                 trues.append(true)

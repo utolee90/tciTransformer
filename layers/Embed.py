@@ -421,3 +421,25 @@ class TCN(nn.Module):
         y1 = self.tcn(inputs.permute(0,2,1))  # input should have dimension (N, C, L)
         o = self.linear(y1.permute(0,2,1)) # sequence의 마지막 time step로 linear계산 -> 분류예측
         return F.log_softmax(o, dim=1)
+
+
+# TimeMixer에서 가져옴
+# 시리즈 분해 기법 -> x -> season, trend로 나누기
+class DFT_series_decomp(nn.Module):
+    """
+    Series decomposition block
+    """
+
+    def __init__(self, top_k=5):
+        super(DFT_series_decomp, self).__init__()
+        self.top_k = top_k
+
+    def forward(self, x):
+        xf = torch.fft.rfft(x)
+        freq = abs(xf)
+        freq[0] = 0
+        top_k_freq, top_list = torch.topk(freq, self.top_k)
+        xf[freq <= top_k_freq.min()] = 0
+        x_season = torch.fft.irfft(xf)
+        x_trend = x - x_season
+        return x_season, x_trend

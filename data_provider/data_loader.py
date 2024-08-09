@@ -7,6 +7,7 @@ from sklearn.preprocessing import StandardScaler
 from utils.timefeatures import time_features
 import warnings
 import random
+from utils.tools import STDecomp
 
 warnings.filterwarnings('ignore')
 
@@ -15,7 +16,7 @@ class Dataset_ETT_hour(Dataset):
     def __init__(self, root_path, flag='train', size=None,
                  features='S', data_path='ETTh1.csv',
                  target='OT', scale=True, timeenc=0, freq='h',
-                 train_ratio=0.7, test_ratio=0.2, two_sided=False, augmented_token=False):
+                 train_ratio=0.7, test_ratio=0.2, two_sided=False, augmented_token=False, seasonal_trend=False):
         # size [seq_len, label_len, pred_len]
         # info
         if size == None:
@@ -36,6 +37,7 @@ class Dataset_ETT_hour(Dataset):
         self.scale = scale
         self.timeenc = timeenc
         self.freq = freq
+        self.seasonal_trend = seasonal_trend
 
         self.root_path = root_path
         self.data_path = data_path
@@ -64,6 +66,11 @@ class Dataset_ETT_hour(Dataset):
             # data += 10 # 알괄적으로 양수로 만들기 위해 작업.
         else:
             data = df_data.values
+
+        # 시계열 분해 옵션 추가
+        if self.seasonal_trend:
+            stdecomp = STDecomp(data)
+            data = stdecomp.get_seasonal_trend_decomposition()
 
         df_stamp = df_raw[['date']][border1:border2]
         df_stamp['date'] = pd.to_datetime(df_stamp.date)
@@ -105,7 +112,7 @@ class Dataset_ETT_minute(Dataset):
     def __init__(self, root_path, flag='train', size=None,
                  features='S', data_path='ETTm1.csv',
                  target='OT', scale=True, timeenc=0, freq='t',
-                 train_ratio=0.7, test_ratio=0.2, two_sided=False, augmented_token=False ):
+                 train_ratio=0.7, test_ratio=0.2, two_sided=False, augmented_token=False, seasonal_trend=False ):
         # size [seq_len, label_len, pred_len]
         # info
         if size == None:
@@ -126,6 +133,7 @@ class Dataset_ETT_minute(Dataset):
         self.scale = scale
         self.timeenc = timeenc
         self.freq = freq
+        self.seasonal_trend = seasonal_trend
 
         self.root_path = root_path
         self.data_path = data_path
@@ -154,6 +162,11 @@ class Dataset_ETT_minute(Dataset):
             # data += 10 # 알괄적으로 양수로 만들기 위해 작업.
         else:
             data = df_data.values
+        
+        # 시계열 분해 옵션 추가
+        if self.seasonal_trend:
+            stdecomp = STDecomp(data)
+            data = stdecomp.get_seasonal_trend_decomposition()
 
         df_stamp = df_raw[['date']][border1:border2]
         df_stamp['date'] = pd.to_datetime(df_stamp.date)
@@ -197,7 +210,7 @@ class Dataset_Custom(Dataset):
     def __init__(self, root_path, flag='train', size=None,
                  features='S', data_path='ETTh1.csv',
                  target='OT', scale=True, timeenc=0, freq='h', 
-                 train_ratio=0.7, test_ratio=0.2, two_sided=False, augmented_token=False ):
+                 train_ratio=0.7, test_ratio=0.2, two_sided=False, augmented_token=False, seasonal_trend=False ):
         # size [seq_len, label_len, pred_len]
         # info
         if size == None:
@@ -225,6 +238,7 @@ class Dataset_Custom(Dataset):
         self.train_ratio = train_ratio # 훈련데이터 비율
         self.test_ratio = test_ratio # 실험데이터 비율
         self.augmented_token = augmented_token # 0으로 채워진 긴 토큰
+        self.seasonal_trend = seasonal_trend # 시계열 분해 수행여부
 
         if train_ratio + test_ratio > 1 or train_ratio < 0 or test_ratio <0:
             raise Exception("ERROR! Ratio must be between 0 and 1 ")
@@ -288,6 +302,13 @@ class Dataset_Custom(Dataset):
             
         else:
             data = df_data.values
+        
+        # 시계열 분해 옵션 추가
+        if self.seasonal_trend:
+            print('STD')
+            stdecomp = STDecomp(data)
+            data = stdecomp.get_seasonal_trend_decomposition()
+            print(data.shape)
 
 
         df_stamp = df_raw[['date']].iloc[data_indices_obj[self.set_type]]
@@ -339,7 +360,7 @@ class Dataset_PEMS(Dataset):
     def __init__(self, root_path, flag='train', size=None,
                  features='S', data_path='ETTh1.csv',
                  target='OT', scale=True, timeenc=0, freq='h',
-                 train_ratio=0.6, test_ratio=0.2, two_sided=False, augmented_token=False) :
+                 train_ratio=0.6, test_ratio=0.2, two_sided=False, augmented_token=False, seasonal_trend=False) :
         # size [seq_len, label_len, pred_len]
         # info
         self.seq_len = size[0]
@@ -358,6 +379,7 @@ class Dataset_PEMS(Dataset):
 
         self.train_ratio = train_ratio
         self.test_ratio = test_ratio
+        self.seasonal_trend = seasonal_trend
 
         self.root_path = root_path
         self.data_path = data_path
@@ -381,6 +403,11 @@ class Dataset_PEMS(Dataset):
             self.scaler.fit(train_data)
             data = self.scaler.transform(data)
             # data += 10 # 알괄적으로 양수로 만들기 위해 작업.
+        
+        # 시계열 분해 옵션 추가
+        if self.seasonal_trend:
+            stdecomp = STDecomp(data)
+            data = stdecomp.get_seasonal_trend_decomposition()
 
         df = pd.DataFrame(data)
         df = df.fillna(method='ffill', limit=len(df)).fillna(method='bfill', limit=len(df)).values
@@ -412,7 +439,7 @@ class Dataset_Solar(Dataset):
     def __init__(self, root_path, flag='train', size=None,
                  features='S', data_path='ETTh1.csv',
                  target='OT', scale=True, timeenc=0, freq='h',
-                 train_ratio=0.7, test_ratio=0.2, two_sided=False, augmented_token=False):
+                 train_ratio=0.7, test_ratio=0.2, two_sided=False, augmented_token=False, seasonal_trend=False):
         # size [seq_len, label_len, pred_len]
         # info
         self.seq_len = size[0]
@@ -431,6 +458,7 @@ class Dataset_Solar(Dataset):
         self.train_ratio = train_ratio
         self.test_ratio = test_ratio
         self.two_sided = two_sided
+        self.seasonal_trend = seasonal_trend
 
         self.root_path = root_path
         self.data_path = data_path
@@ -485,6 +513,11 @@ class Dataset_Solar(Dataset):
             # data += 10 # 알괄적으로 양수로 만들기 위해 작업.
         else:
             data = df_data
+        
+        # 시계열 분해 옵션 추가
+        if self.seasonal_trend:
+            stdecomp = STDecomp(data)
+            data = stdecomp.get_seasonal_trend_decomposition()
 
         self.data_x = data[data_indices_obj[self.set_type]] 
         self.data_y = data[data_indices_obj[self.set_type]] 
@@ -513,7 +546,7 @@ class Dataset_Pred(Dataset):
     def __init__(self, root_path, flag='pred', size=None,
                  features='S', data_path='ETTh1.csv',
                  target='OT', scale=True, inverse=False, timeenc=0, freq='15min', cols=None,
-                 train_ratio=0.7, test_ratio=0.2, two_sided=False, augmented_token=False ):
+                 train_ratio=0.7, test_ratio=0.2, two_sided=False, augmented_token=False, seasonal_trend=False ):
         # size [seq_len, label_len, pred_len]
         # info
         if size == None:
@@ -536,6 +569,8 @@ class Dataset_Pred(Dataset):
         self.cols = cols
         self.root_path = root_path
         self.data_path = data_path
+        self.seasonal_trend = seasonal_trend
+
         self.__read_data__()
 
     def __read_data__(self):
@@ -567,6 +602,11 @@ class Dataset_Pred(Dataset):
             data = self.scaler.transform(df_data.values)
         else:
             data = df_data.values
+        
+        # 시계열 분해 옵션 추가
+        if self.seasonal_trend:
+            stdecomp = STDecomp(data)
+            data = stdecomp.get_seasonal_trend_decomposition()
 
         tmp_stamp = df_raw[['date']][border1:border2]
         tmp_stamp['date'] = pd.to_datetime(tmp_stamp.date)

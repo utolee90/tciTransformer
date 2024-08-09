@@ -1,10 +1,13 @@
+## iTransformer -> filter
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from layers.Transformer_EncDec import Encoder, EncoderLayer
 from layers.SelfAttention_Family import FullAttention, AttentionLayer
-from layers.Embed import DataEmbedding_inverted_TCN, TCN
+from layers.Embed import DataEmbedding_inverted
 import numpy as np
+
 
 
 class Model(nn.Module):
@@ -19,16 +22,13 @@ class Model(nn.Module):
         self.output_attention = configs.output_attention
         self.use_norm = configs.use_norm
         # Embedding
-        print("ITR_TCN CONFIG: ", configs.seq_len, configs.d_model, configs.embed, configs.freq,
-                                                        configs.dropout, configs.tcn_layers, configs.tcn_kernel_size, configs.tcn_dropout, configs.tcn_uniform_layer)
-        self.enc_embedding = DataEmbedding_inverted_TCN(configs.seq_len, configs.d_model, configs.embed, configs.freq,
-                                                        configs.dropout, configs.tcn_layers, configs.tcn_kernel_size, configs.tcn_dropout, configs.tcn_uniform_layer)
-                                                        
+        self.enc_embedding = DataEmbedding_inverted(configs.seq_len, configs.d_model, configs.embed, configs.freq,
+                                                    configs.dropout)
         self.class_strategy = configs.class_strategy
         # Encoder-only architecture
         self.encoder = Encoder(
             [
-                EncoderLayer( 
+                EncoderLayer(
                     AttentionLayer(
                         FullAttention(False, configs.factor, attention_dropout=configs.dropout,
                                       output_attention=configs.output_attention), configs.d_model, configs.n_heads),
@@ -40,9 +40,7 @@ class Model(nn.Module):
             ],
             norm_layer=torch.nn.LayerNorm(configs.d_model)
         )
-        # Linear -> TCN 적용
-        # self.projector = nn.Linear(configs.d_model, configs.pred_len, bias=True)
-        self.projector = TCN(configs.d_model, configs.pred_len, [configs.d_model]*3, 2, configs.dropout)
+        self.projector = nn.Linear(configs.d_model, configs.pred_len, bias=True)
 
     def forecast(self, x_enc, x_mark_enc, x_dec, x_mark_dec):
         if self.use_norm:
